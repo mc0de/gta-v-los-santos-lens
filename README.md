@@ -1,4 +1,4 @@
-# SPESP â€” Single-player ESP for GTA V
+# SPESP — Single-player ESP for GTA V
 
 A [ScriptHookV](http://www.dev-c.com/gtav/scripthookv/) plugin with ESP overlays, auto-aim and a few utilities for GTA V **Story Mode**.
 
@@ -7,19 +7,32 @@ A [ScriptHookV](http://www.dev-c.com/gtav/scripthookv/) plugin with ESP overlays
 ## Features
 
 ### ESP
-- **Peds**: 2D boxes, optional **skeletons** (visible through walls and models), a small health bar above the head, distance, and labels for weapon held and COP / SWAT / ARMY. Weapon labels can be turned off separately (`Weapon labels` in the menu). Animals can be hidden (on by default). Colour shows disposition:
-  | Colour | Meaning |
-  |---|---|
-  | Red | In combat with you, or hostile (hate / dislike) |
-  | Green | Friendly (companion / respect / like) |
-  | Blue | Cop, SWAT, army |
-  | White | Neutral |
-  | Grey | Dead |
-  | Magenta | Current auto-aim target |
-- **Vehicles**: box with name and distance, plus `emergency`, `occupied` and `locked` tags. Emergency vehicles are blue, others yellow, wrecks grey.
+Targets are sorted into categories, and for each category you choose what to draw. In the menu this is a grid: one row per category, one column per element.
+
+| Category | Who | Colour |
+|---|---|---|
+| Animals | All animals | Tan, red while attacking you |
+| Hostiles | People fighting you or hostile toward you (hate / dislike), including cops chasing you | Red |
+| Cops | Cops, SWAT, army that aren't after you | Blue |
+| Pedestrians | Everyone else | Green if friendly, white if neutral |
+| Vehicles | All vehicles except the one you're in | Blue for emergency, yellow otherwise |
+
+| Column | What it draws |
+|---|---|
+| On | Show this category at all |
+| Box | 2D bounding box |
+| HP | Small health bar above the box |
+| Dist | Distance below the box |
+| Info | Peds: COP / SWAT / ARMY and the weapon held. Vehicles: name plus `emergency`, `occupied`, `locked` tags |
+| Line | Tracer from you to the target, visible through walls |
+
+Defaults: hostiles and cops get everything except tracers, pedestrians and animals get box and distance, and animals are off.
+
+Other ESP options:
+- **Show dead**: also draw dead peds and wrecked vehicles (grey). Off by default.
 - **Threat arrows**: red arrows around the screen centre pointing at hostiles you can't see on screen.
 - **Distance fade**: far targets are drawn fainter.
-- **Tracers** (optional): 3D lines from you to each target.
+- The current auto-aim target is always drawn, in magenta, even if its category is off.
 
 ### Auto-aim
 While you hold aim (right mouse), the camera locks onto the nearest living ped you have clear line of sight to. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight.
@@ -40,28 +53,29 @@ While you hold aim (right mouse), the camera locks onto the nearest living ped y
 
 ## Menu and hotkeys
 
-Press **Delete** to open the menu. Arrow keys move / change values, Enter toggles or runs an action, Backspace or Delete closes it. (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `SPESP.ini` when the menu closes.
+Press **Delete** to open the menu. Arrow keys move / change values (in the ESP grid, Left/Right move between cells), Enter toggles or runs an action, Backspace or Delete closes it. (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `SPESP.ini` when the menu closes.
 
 | Key | Action |
 |---|---|
 | Delete | Open / close menu |
 | F9 | Toggle ESP |
-| F10 | Cycle ESP targets: peds â†’ vehicles â†’ both |
-| F11 | Toggle tracers |
+| F10 | Toggle pedestrians (quickly declutter busy streets) |
+| F11 | Toggle vehicles |
 | Page Up | Toggle auto-aim |
 | Page Down | Switch aim point: head / body |
 | End | Teleport to waypoint |
 
-F5â€“F8 are left alone because the game uses them for character switching.
+F5–F8 are left alone because the game uses them for character switching.
 
-A small status line near the top-left corner shows what's on, e.g. `ESP P+V TR | AIM HEAD` (P = peds, V = vehicles, TR = tracers).
+A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | AIM HEAD`, listing the ESP categories that are on: H = hostiles, C = cops, P = pedestrians, A = animals, V = vehicles.
 
 ## Configuration (`SPESP.ini`)
 
 Created next to `SPESP.asi` with defaults on first run. Edit it while the game runs and use **Reload settings file** in the menu to apply.
 
 - `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey.
-- `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position (0â€“1 screen fractions).
+- `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position (0–1 screen fractions).
+- `[ESP.Hostiles]`, `[ESP.Cops]`, `[ESP.Pedestrians]`, `[ESP.Animals]`, `[ESP.Vehicles]`: the grid, with keys `Enabled`, `Box`, `Health`, `Distance`, `Labels`, `Tracers`.
 - `[Collectibles]`: `model_name=Label` lines.
 
 ## Building
@@ -92,7 +106,7 @@ Output: `build/Release/SPESP.asi`. The CRT is linked statically, so the only run
    - `ScriptHookV.dll`
    - an ASI loader as `dinput8.dll`. The loader bundled with ScriptHookV only works with Legacy (`GTA5.exe`); for Enhanced use one that supports it, such as [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
    - `SPESP.asi`
-3. Launch with **BattlEye disabled** (Rockstar Games Launcher â†’ Settings â†’ your GTA V edition) and load Story Mode.
+3. Launch with **BattlEye disabled** (Rockstar Games Launcher → Settings → your GTA V edition) and load Story Mode.
 
 To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI plugins loading) or all the files above.
 
@@ -103,7 +117,7 @@ To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI p
 | `src/invoke.h` | Native invoker over the SDK's `nativeInit` / `nativePush64` / `nativeCall`, and native hashes (each checked against the SDK's `natives.h`) |
 | `src/ui.*` | Drawing helpers (text, rects, sprites, 3D lines, bounding boxes), notifications, keyboard input |
 | `src/settings.*` | `Settings` struct and `SPESP.ini` load / save |
-| `src/esp.cpp` | Ped / vehicle ESP, skeletons, labels, threat arrows |
+| `src/esp.cpp` | Ped categories, ped / vehicle ESP, labels, threat arrows |
 | `src/aim.cpp` | Auto-aim target selection, line of sight, smoothing, aim zone |
 | `src/world.cpp` | Collectible / pickup finder, damage numbers, teleport |
 | `src/menu.*` | In-game menu |

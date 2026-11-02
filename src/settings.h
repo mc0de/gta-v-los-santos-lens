@@ -5,18 +5,27 @@
 #include <string>
 #include <vector>
 
-enum class Targets { Peds, Vehicles, Both };
 enum class AimBone { Head, Body };
 enum class AimPriority { Nearest, HostilesFirst, HostilesOnly };
 
 struct Keys {
-    int menu          = VK_DELETE; // Home opens the Rockstar launcher overlay
-    int toggleEsp     = VK_F9;
-    int cycleTargets  = VK_F10;
-    int toggleTracers = VK_F11;
-    int toggleAim     = VK_PRIOR; // Page Up
-    int aimBone       = VK_NEXT;  // Page Down
-    int teleport      = VK_END;
+    int menu             = VK_DELETE; // Home opens the Rockstar launcher overlay
+    int toggleEsp        = VK_F9;
+    int togglePedestrians = VK_F10;
+    int toggleVehicles   = VK_F11;
+    int toggleAim        = VK_PRIOR; // Page Up
+    int aimBone          = VK_NEXT;  // Page Down
+    int teleport         = VK_END;
+};
+
+// What the ESP draws for one category of target.
+struct EspStyle {
+    bool enabled;
+    bool box;
+    bool health;
+    bool distance;
+    bool labels;   // peds: COP/SWAT/ARMY and weapon held; vehicles: name and tags
+    bool tracers;
 };
 
 struct Collectible {
@@ -29,18 +38,20 @@ struct Settings {
 
     // ESP
     bool esp = true;
-    Targets targets = Targets::Both;
-    bool boxes = true;
-    bool skeletons = false;
-    bool healthBars = true;
-    bool labels = true;
-    bool weaponLabels = true;
-    bool tracers = false;
+    bool showDead = false;
     bool distanceFade = true;
     bool threatArrows = true;
-    bool espIgnoreAnimals = true;
     float pedRange = 250.0f;
     float vehRange = 350.0f;
+
+    // Peds are sorted into one category each, checked in this order:
+    // animal, hostile (fighting you / hates you), cop (cop/SWAT/army), pedestrian (everyone else).
+    //                         on     box    health distance labels tracers
+    EspStyle hostiles    {    true,  true,  true,  true,    true,  false };
+    EspStyle animals     {    false, true,  false, true,    false, false };
+    EspStyle cops        {    true,  true,  true,  true,    true,  false };
+    EspStyle pedestrians {    true,  true,  false, true,    false, false };
+    EspStyle vehicles    {    true,  true,  false, true,    true,  false };
 
     // Finder
     bool collectibles = false;

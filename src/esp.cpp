@@ -10,32 +10,7 @@ constexpr float kDegToRad = 0.0174532925f;
 constexpr float kLabelScale = 0.2f;
 constexpr float kLabelHeight = 0.016f; // approx. screen height of a label line at kLabelScale
 
-// Bones used for skeleton ESP, and the pairs (indices into kSkeletonBones) to connect.
-constexpr int kSkeletonBones[] = {
-    31086, // 0  SKEL_Head
-    39317, // 1  SKEL_Neck_1
-    24818, // 2  SKEL_Spine3
-    11816, // 3  SKEL_Pelvis
-    45509, // 4  SKEL_L_UpperArm
-    61163, // 5  SKEL_L_Forearm
-    18905, // 6  SKEL_L_Hand
-    40269, // 7  SKEL_R_UpperArm
-    28252, // 8  SKEL_R_Forearm
-    57005, // 9  SKEL_R_Hand
-    58271, // 10 SKEL_L_Thigh
-    63931, // 11 SKEL_L_Calf
-    14201, // 12 SKEL_L_Foot
-    51826, // 13 SKEL_R_Thigh
-    36864, // 14 SKEL_R_Calf
-    52301, // 15 SKEL_R_Foot
-};
-constexpr int kSkeletonLinks[][2] = {
-    { 0, 1 }, { 1, 2 }, { 2, 3 },                 // head to pelvis
-    { 1, 4 }, { 4, 5 }, { 5, 6 },                 // left arm
-    { 1, 7 }, { 7, 8 }, { 8, 9 },                 // right arm
-    { 3, 10 }, { 10, 11 }, { 11, 12 },            // left leg
-    { 3, 13 }, { 13, 14 }, { 14, 15 },            // right leg
-};
+constexpr Color kTan { 210, 180, 130, 220 };
 
 struct WeaponName { const char* model; const char* label; Hash hash; };
 WeaponName kWeapons[] = {
@@ -92,93 +67,130 @@ const char* LawLabel(Ped p) {
     }
 }
 
+enum class PedCategory { Hostile, Animal, Cop, Pedestrian };
+
+// Animals always land in Animals (even when attacking) so that category's switch hides all of them.
+PedCategory Classify(Ped p, Ped player, bool human) {
+    if (!human)               return PedCategory::Animal;
+    if (IsThreat(p, player))  return PedCategory::Hostile;
+    if (IsLawEnforcement(p))  return PedCategory::Cop;
+    return PedCategory::Pedestrian;
+}
+
+const EspStyle& StyleFor(PedCategory c) {
+    switch (c) {
+        case PedCategory::Hostile: return g.hostiles;
+        case PedCategory::Animal:  return g.animals;
+        case PedCategory::Cop:     return g.cops;
+        default:                   return g.pedestrians;
+    }
+}
+
+Color CategoryColor(PedCategory c, Ped p, Ped player) {
+    switch (c) {
+        case PedCategory::Hostile: return kRed;
+        case PedCategory::Animal:  return IsThreat(p, player) ? kRed : kTan; // red while attacking you
+        case PedCategory::Cop:     return kBlue;
+        default:
+            // companion / respect / like
+            return Invoke<int>(N::GET_RELATIONSHIP_BETWEEN_PEDS, p, player) <= 2 ? kGreen : kWhite;
+    }
+}
+
 // Far targets fade out so crowded areas stay readable.
 Color Faded(Color c, float dist, float range) {
     if (!g.distanceFade || range <= 0.0f) return c;
     return WithAlpha(c, 1.0f - 0.7f * (std::min)(dist / range, 1.0f));
 }
 
-Color PedColor(Ped ped, Ped player) {
-    if (Invoke<int>(N::IS_ENTITY_DEAD, ped, 0)) return kGrey;
-    if (IsThreat(ped, player)) return kRed;
-    if (IsLawEnforcement(ped)) return kBlue;
-    int rel = Invoke<int>(N::GET_RELATIONSHIP_BETWEEN_PEDS, ped, player);
-    if (rel <= 2) return kGreen; // companion / respect / like
-    return kWhite;
-}
+// Draws the parts of a target that its style enables: box, health bar and label above it,
+// distance below, tracer from the player.
+void DrawTarget(const EspStyle& s, const Box2D& box, Color c, const Vec3& me, const Vec3& pos,
+                float dist, float healthFrac, const char* label, bool forceBox) {
+    if (s.box || forceBox)
+        DrawBox(box, c);
 
-void DrawSkeleton(Ped p, Color c) {
-    Vec3 pts[std::size(kSkeletonBones)];
-    for (size_t i = 0; i < std::size(kSkeletonBones); ++i)
-        pts[i] = Invoke<Vec3>(N::GET_PED_BONE_COORDS, p, kSkeletonBones[i], 0.0f, 0.0f, 0.0f);
-    for (const auto& link : kSkeletonLinks)
-        OverlayLine(pts[link[0]], pts[link[1]], c);
+    float labelY = box.y0 - kLabelHeight - 0.002f;
+    if (s.health && healthFrac >= 0.0f) {
+        DrawHealthBar(box, healthFrac);
+        labelY -= kHealthBarGap + 0.002f;
+    }
+
+    float cx = (box.x0 + box.x1) * 0.5f;
+    if (s.labels && label && *label)
+        Text(cx, labelY, label, c, kLabelScale);
+
+    if (s.distance) {
+        char buf[16];
+        std::snprintf(buf, sizeof buf, "%.0fm", dist);
+        Text(cx, box.y1 + 0.002f, buf, c, kLabelScale);
+    }
+
+    if (s.tracers)
+        OverlayLine(me, pos, c);
 }
 
 void DrawPeds(Ped player, const Vec3& me) {
     static int peds[512];
     int count = worldGetAllPeds(peds, 512);
-    char buf[96];
+    char label[64];
 
     for (int i = 0; i < count; ++i) {
         Ped p = peds[i];
         if (p == player) continue;
+
+        bool dead = Invoke<int>(N::IS_ENTITY_DEAD, p, 0) != 0;
+        if (dead && !g.showDead) continue;
 
         Vec3 pos = Invoke<Vec3>(N::GET_ENTITY_COORDS, p, 1);
         float dist = Distance(me, pos);
         if (dist > g.pedRange) continue;
 
         bool human = Invoke<int>(N::IS_PED_HUMAN, p) != 0;
-        if (g.espIgnoreAnimals && !human) continue;
+        PedCategory cat = Classify(p, player, human);
+        const EspStyle& s = StyleFor(cat);
+        // The auto-aim target is always shown, even if its category is off.
+        bool isTarget = p == g_aimTarget;
+        if (!s.enabled && !isTarget) continue;
 
         Box2D box;
         if (!ScreenBox(p, box)) continue;
 
-        bool dead = Invoke<int>(N::IS_ENTITY_DEAD, p, 0) != 0;
-        Color c = Faded((p == g_aimTarget) ? kMagenta : PedColor(p, player), dist, g.pedRange);
+        Color c = Faded(isTarget ? kMagenta : dead ? kGrey : CategoryColor(cat, p, player), dist, g.pedRange);
 
-        if (g.boxes)
-            DrawBox(box, c);
-        if (g.skeletons && !dead && human)
-            DrawSkeleton(p, c);
-
-        // Above the box: health bar, then the label line above that.
-        float labelY = box.y0 - kLabelHeight - 0.002f;
-        if (g.healthBars && !dead) {
+        float healthFrac = -1.0f;
+        if (s.health && !dead) {
             int hp = Invoke<int>(N::GET_ENTITY_HEALTH, p);
             int maxHp = Invoke<int>(N::GET_ENTITY_MAX_HEALTH, p);
             // Peds die at 100 HP, so the usable range is [100, max].
-            if (maxHp > 100) {
-                DrawHealthBar(box, (hp - 100) / float(maxHp - 100));
-                labelY -= kHealthBarGap + 0.002f;
-            }
+            if (maxHp > 100)
+                healthFrac = (hp - 100) / float(maxHp - 100);
         }
 
-        float cx = (box.x0 + box.x1) * 0.5f;
-        std::snprintf(buf, sizeof buf, "%.0fm", dist);
-        Text(cx, box.y1 + 0.002f, buf, c, kLabelScale);
-
-        if (g.labels && !dead) {
+        label[0] = '\0';
+        if (s.labels && !dead) {
             const char* law = LawLabel(p);
-            const char* weapon = g.weaponLabels ? WeaponLabel(p) : nullptr;
-            if (law || weapon) {
-                std::snprintf(buf, sizeof buf, "%s%s%s", law ? law : "", law && weapon ? " | " : "", weapon ? weapon : "");
-                Text(cx, labelY, buf, c, kLabelScale);
-            }
+            const char* weapon = WeaponLabel(p);
+            std::snprintf(label, sizeof label, "%s%s%s", law ? law : "", law && weapon ? " | " : "", weapon ? weapon : "");
         }
 
-        if (g.tracers && !dead)
-            OverlayLine(me, pos, c);
+        DrawTarget(s, box, c, me, pos, dist, healthFrac, label, isTarget);
     }
 }
 
 void DrawVehicles(Ped player, const Vec3& me) {
+    const EspStyle& s = g.vehicles;
+    if (!s.enabled) return;
+
     static int vehs[512];
     int count = worldGetAllVehicles(vehs, 512);
-    char buf[128];
+    char label[128];
 
     for (int i = 0; i < count; ++i) {
         Vehicle v = vehs[i];
+        bool wrecked = Invoke<int>(N::IS_ENTITY_DEAD, v, 0) != 0;
+        if (wrecked && !g.showDead) continue;
+
         Vec3 pos = Invoke<Vec3>(N::GET_ENTITY_COORDS, v, 1);
         float dist = Distance(me, pos);
         if (dist < 3.0f || dist > g.vehRange) continue; // skip the car we're sitting in
@@ -186,30 +198,34 @@ void DrawVehicles(Ped player, const Vec3& me) {
         Box2D box;
         if (!ScreenBox(v, box)) continue;
 
-        bool wrecked = Invoke<int>(N::IS_ENTITY_DEAD, v, 0) != 0;
         bool emergency = Invoke<int>(N::GET_VEHICLE_CLASS, v) == 18;
         Color c = Faded(wrecked ? kGrey : emergency ? kBlue : kYellow, dist, g.vehRange);
-        if (g.boxes)
-            DrawBox(box, c);
 
-        const char* label = Invoke<const char*>(N::GET_DISPLAY_NAME_FROM_VEHICLE_MODEL,
-                                                Invoke<Hash>(N::GET_ENTITY_MODEL, v));
-        const char* name = Invoke<const char*>(N::GET_FILENAME_FOR_AUDIO_CONVERSATION, label);
-        int len = std::snprintf(buf, sizeof buf, "%s  %.0fm", name ? name : "?", dist);
-
-        if (g.labels && !wrecked && len > 0 && len < static_cast<int>(sizeof buf)) {
-            Ped driver = Invoke<Ped>(N::GET_PED_IN_VEHICLE_SEAT, v, -1);
-            int lock = Invoke<int>(N::GET_VEHICLE_DOOR_LOCK_STATUS, v);
-            bool locked = lock == 2 || lock == 3 || lock == 4 || lock == 10;
-            std::snprintf(buf + len, sizeof buf - len, "%s%s%s",
-                          emergency ? " | emergency" : "",
-                          driver && driver != player ? " | occupied" : "",
-                          locked ? " | locked" : "");
+        float healthFrac = -1.0f;
+        if (s.health && !wrecked) {
+            int maxHp = Invoke<int>(N::GET_ENTITY_MAX_HEALTH, v);
+            if (maxHp > 0)
+                healthFrac = Invoke<int>(N::GET_ENTITY_HEALTH, v) / float(maxHp);
         }
-        Text((box.x0 + box.x1) * 0.5f, box.y0 - kLabelHeight - 0.002f, buf, c, kLabelScale);
 
-        if (g.tracers)
-            OverlayLine(me, pos, c);
+        label[0] = '\0';
+        if (s.labels) {
+            const char* model = Invoke<const char*>(N::GET_DISPLAY_NAME_FROM_VEHICLE_MODEL,
+                                                    Invoke<Hash>(N::GET_ENTITY_MODEL, v));
+            const char* name = Invoke<const char*>(N::GET_FILENAME_FOR_AUDIO_CONVERSATION, model);
+            int len = std::snprintf(label, sizeof label, "%s", name ? name : "?");
+            if (!wrecked && len > 0 && len < static_cast<int>(sizeof label)) {
+                Ped driver = Invoke<Ped>(N::GET_PED_IN_VEHICLE_SEAT, v, -1);
+                int lock = Invoke<int>(N::GET_VEHICLE_DOOR_LOCK_STATUS, v);
+                bool locked = lock == 2 || lock == 3 || lock == 4 || lock == 10;
+                std::snprintf(label + len, sizeof label - len, "%s%s%s",
+                              emergency ? " | emergency" : "",
+                              driver && driver != player ? " | occupied" : "",
+                              locked ? " | locked" : "");
+            }
+        }
+
+        DrawTarget(s, box, c, me, pos, dist, healthFrac, label, false);
     }
 }
 
@@ -259,13 +275,16 @@ bool IsLawEnforcement(Ped p) {
 
 bool IsThreat(Ped p, Ped player) {
     if (Invoke<int>(N::IS_PED_IN_COMBAT, p, player)) return true;
+    // Wild animals "hate" the player by default even while idle, so for animals only
+    // actual combat counts.
+    if (!Invoke<int>(N::IS_PED_HUMAN, p)) return false;
     int rel = Invoke<int>(N::GET_RELATIONSHIP_BETWEEN_PEDS, p, player);
     return rel == 4 || rel == 5; // dislike / hate
 }
 
 void EspTick(Ped player, const Vec3& me) {
     InitWeaponNames();
-    if (g.targets != Targets::Vehicles) DrawPeds(player, me);
-    if (g.targets != Targets::Peds)     DrawVehicles(player, me);
-    if (g.threatArrows)                 DrawThreatArrows(player, me);
+    DrawPeds(player, me);
+    DrawVehicles(player, me);
+    if (g.threatArrows) DrawThreatArrows(player, me);
 }

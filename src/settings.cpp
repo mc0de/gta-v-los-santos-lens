@@ -38,7 +38,6 @@ const KeyName kKeyNames[] = {
     { "Subtract", VK_SUBTRACT }, { "Divide", VK_DIVIDE },
 };
 
-const char* const kTargetNames[]   = { "peds", "vehicles", "both" };
 const char* const kBoneNames[]     = { "head", "body" };
 const char* const kPriorityNames[] = { "nearest", "hostiles_first", "hostiles_only" };
 
@@ -117,6 +116,35 @@ void WriteEnum(const char* sec, const char* key, E v, const char* const (&names)
     Write(sec, key, names[static_cast<size_t>(v)]);
 }
 
+void ReadStyle(const char* sec, EspStyle& s) {
+    ReadBool(sec, "Enabled", s.enabled);
+    ReadBool(sec, "Box", s.box);
+    ReadBool(sec, "Health", s.health);
+    ReadBool(sec, "Distance", s.distance);
+    ReadBool(sec, "Labels", s.labels);
+    ReadBool(sec, "Tracers", s.tracers);
+}
+
+void WriteStyle(const char* sec, const EspStyle& s) {
+    WriteBool(sec, "Enabled", s.enabled);
+    WriteBool(sec, "Box", s.box);
+    WriteBool(sec, "Health", s.health);
+    WriteBool(sec, "Distance", s.distance);
+    WriteBool(sec, "Labels", s.labels);
+    WriteBool(sec, "Tracers", s.tracers);
+}
+
+// Keys from earlier versions, removed on save so the ini doesn't keep dead settings around.
+void DeleteObsoleteKeys() {
+    static const char* const kKeys[] = { "CycleTargets", "ToggleTracers" };
+    static const char* const kEsp[] = {
+        "Targets", "Boxes", "Skeletons", "HealthBars", "Labels", "WeaponLabels",
+        "Tracers", "IgnoreAnimals", "HostilesOnly",
+    };
+    for (const char* k : kKeys) WritePrivateProfileStringA("Keys", k, nullptr, g_path.c_str());
+    for (const char* k : kEsp)  WritePrivateProfileStringA("ESP", k, nullptr, g_path.c_str());
+}
+
 void ReadCollectibles() {
     std::vector<char> buf(32 * 1024);
     DWORD len = GetPrivateProfileSectionA("Collectibles", buf.data(), static_cast<DWORD>(buf.size()), g_path.c_str());
@@ -141,25 +169,23 @@ void ReloadSettings() {
 
     ReadKey("Menu", g.keys.menu);
     ReadKey("ToggleEsp", g.keys.toggleEsp);
-    ReadKey("CycleTargets", g.keys.cycleTargets);
-    ReadKey("ToggleTracers", g.keys.toggleTracers);
+    ReadKey("TogglePedestrians", g.keys.togglePedestrians);
+    ReadKey("ToggleVehicles", g.keys.toggleVehicles);
     ReadKey("ToggleAim", g.keys.toggleAim);
     ReadKey("AimBone", g.keys.aimBone);
     ReadKey("Teleport", g.keys.teleport);
 
     ReadBool("ESP", "Enabled", g.esp);
-    ReadEnum("ESP", "Targets", g.targets, kTargetNames);
-    ReadBool("ESP", "Boxes", g.boxes);
-    ReadBool("ESP", "Skeletons", g.skeletons);
-    ReadBool("ESP", "HealthBars", g.healthBars);
-    ReadBool("ESP", "Labels", g.labels);
-    ReadBool("ESP", "WeaponLabels", g.weaponLabels);
-    ReadBool("ESP", "Tracers", g.tracers);
+    ReadBool("ESP", "ShowDead", g.showDead);
     ReadBool("ESP", "DistanceFade", g.distanceFade);
     ReadBool("ESP", "ThreatArrows", g.threatArrows);
-    ReadBool("ESP", "IgnoreAnimals", g.espIgnoreAnimals);
     ReadFloat("ESP", "PedRange", g.pedRange);
     ReadFloat("ESP", "VehicleRange", g.vehRange);
+    ReadStyle("ESP.Hostiles", g.hostiles);
+    ReadStyle("ESP.Animals", g.animals);
+    ReadStyle("ESP.Cops", g.cops);
+    ReadStyle("ESP.Pedestrians", g.pedestrians);
+    ReadStyle("ESP.Vehicles", g.vehicles);
 
     ReadBool("Finder", "Collectibles", g.collectibles);
     ReadBool("Finder", "Pickups", g.pickups);
@@ -184,25 +210,24 @@ void ReloadSettings() {
 void SaveSettings() {
     WriteKey("Menu", g.keys.menu);
     WriteKey("ToggleEsp", g.keys.toggleEsp);
-    WriteKey("CycleTargets", g.keys.cycleTargets);
-    WriteKey("ToggleTracers", g.keys.toggleTracers);
+    WriteKey("TogglePedestrians", g.keys.togglePedestrians);
+    WriteKey("ToggleVehicles", g.keys.toggleVehicles);
     WriteKey("ToggleAim", g.keys.toggleAim);
     WriteKey("AimBone", g.keys.aimBone);
     WriteKey("Teleport", g.keys.teleport);
 
     WriteBool("ESP", "Enabled", g.esp);
-    WriteEnum("ESP", "Targets", g.targets, kTargetNames);
-    WriteBool("ESP", "Boxes", g.boxes);
-    WriteBool("ESP", "Skeletons", g.skeletons);
-    WriteBool("ESP", "HealthBars", g.healthBars);
-    WriteBool("ESP", "Labels", g.labels);
-    WriteBool("ESP", "WeaponLabels", g.weaponLabels);
-    WriteBool("ESP", "Tracers", g.tracers);
+    WriteBool("ESP", "ShowDead", g.showDead);
     WriteBool("ESP", "DistanceFade", g.distanceFade);
     WriteBool("ESP", "ThreatArrows", g.threatArrows);
-    WriteBool("ESP", "IgnoreAnimals", g.espIgnoreAnimals);
     WriteFloat("ESP", "PedRange", g.pedRange);
     WriteFloat("ESP", "VehicleRange", g.vehRange);
+    WriteStyle("ESP.Hostiles", g.hostiles);
+    WriteStyle("ESP.Animals", g.animals);
+    WriteStyle("ESP.Cops", g.cops);
+    WriteStyle("ESP.Pedestrians", g.pedestrians);
+    WriteStyle("ESP.Vehicles", g.vehicles);
+    DeleteObsoleteKeys();
 
     WriteBool("Finder", "Collectibles", g.collectibles);
     WriteBool("Finder", "Pickups", g.pickups);

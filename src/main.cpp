@@ -1,5 +1,5 @@
 // Single-player ESP for GTA V (ScriptHookV plugin).
-// Default keys (configurable in SPESP.ini): Delete menu, F9 ESP, F10 ESP targets, F11 tracers,
+// Default keys (configurable in SPESP.ini): Delete menu, F9 ESP, F10 pedestrians, F11 vehicles,
 // Page Up auto-aim, Page Down aim point, End teleport to waypoint.
 // (F5-F8 are the game's character-switch keys.)
 
@@ -11,23 +11,23 @@ namespace {
 
 HMODULE g_module = nullptr;
 
-const char* TargetsName(Targets t) {
-    switch (t) {
-        case Targets::Peds:     return "P";
-        case Targets::Vehicles: return "V";
-        default:                return "P+V";
-    }
-}
-
 // Small status line near the top-left corner, shown while ESP or auto-aim is on.
+// ESP categories that are on are listed by letter: H(ostiles) C(ops) P(edestrians) A(nimals) V(ehicles).
 void DrawStatus() {
     if (!g.esp && !g.aim) return;
 
+    char cats[16] = "";
+    if (g.esp) {
+        std::snprintf(cats, sizeof cats, "%s%s%s%s%s",
+                      g.hostiles.enabled ? "H" : "", g.cops.enabled ? "C" : "",
+                      g.pedestrians.enabled ? "P" : "", g.animals.enabled ? "A" : "",
+                      g.vehicles.enabled ? "V" : "");
+    }
+
     char status[64];
-    std::snprintf(status, sizeof status, "%s%s%s%s%s",
+    std::snprintf(status, sizeof status, "%s%s%s%s",
                   g.esp ? "ESP " : "",
-                  g.esp ? TargetsName(g.targets) : "",
-                  g.esp && g.tracers ? " TR" : "",
+                  cats,
                   g.esp && g.aim ? " | " : "",
                   !g.aim ? "" : g.aimBone == AimBone::Head ? "AIM HEAD" : "AIM BODY");
     Text(g.statusX, g.statusY, status, kWhite, 0.2f, false);
@@ -35,11 +35,11 @@ void DrawStatus() {
 
 void HandleHotkeys() {
     const Keys& k = g.keys;
-    if (KeyPressed(k.menu))          MenuToggle();
-    if (KeyPressed(k.toggleEsp))     g.esp = !g.esp;
-    if (KeyPressed(k.cycleTargets))  g.targets = static_cast<Targets>((static_cast<int>(g.targets) + 1) % 3);
-    if (KeyPressed(k.toggleTracers)) g.tracers = !g.tracers;
-    if (KeyPressed(k.toggleAim))     { g.aim = !g.aim; g_aimTarget = 0; }
+    if (KeyPressed(k.menu))              MenuToggle();
+    if (KeyPressed(k.toggleEsp))         g.esp = !g.esp;
+    if (KeyPressed(k.togglePedestrians)) g.pedestrians.enabled = !g.pedestrians.enabled;
+    if (KeyPressed(k.toggleVehicles))    g.vehicles.enabled = !g.vehicles.enabled;
+    if (KeyPressed(k.toggleAim))         { g.aim = !g.aim; g_aimTarget = 0; }
     if (KeyPressed(k.aimBone))       g.aimBone = g.aimBone == AimBone::Head ? AimBone::Body : AimBone::Head;
     if (KeyPressed(k.teleport))      TeleportToWaypoint();
 }
