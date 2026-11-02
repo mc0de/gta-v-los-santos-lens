@@ -1,6 +1,7 @@
 // Single-player ESP for GTA V (ScriptHookV plugin).
 // F9 toggle ESP, F10 cycle targets (peds / vehicles / both), F11 toggle tracers,
-// Page Up toggle auto-aim (locks onto the nearest visible ped while you hold aim).
+// Page Up toggle auto-aim (locks onto the nearest visible human while you hold aim),
+// Page Down switch aim point (head / body).
 // (F5-F8 are the game's character-switch keys.)
 
 #include "invoke.h"
@@ -11,13 +12,16 @@
 namespace {
 
 enum class Targets { Peds, Vehicles, Both };
+enum class AimBone { Head, Body };
 
 constexpr int kKeyToggle  = VK_F9;
 constexpr int kKeyTargets = VK_F10;
 constexpr int kKeyTracers = VK_F11;
 constexpr int kKeyAim     = VK_PRIOR; // Page Up
+constexpr int kKeyAimBone = VK_NEXT;  // Page Down
 
 constexpr int kBoneHead = 31086;      // SKEL_Head
+constexpr int kBoneBody = 24818;      // SKEL_Spine3 (upper chest)
 constexpr int kLosTraceFlags = 17;    // world geometry + vehicles + objects
 constexpr float kRadToDeg = 57.2957795f;
 
@@ -25,6 +29,8 @@ struct Settings {
     bool enabled = true;
     bool tracers = false;
     bool aim = false;
+    AimBone aimBone = AimBone::Head;
+    bool aimIgnoreAnimals = true;
     Targets targets = Targets::Both;
     float pedRange = 250.0f;
     float vehRange = 350.0f;
@@ -194,6 +200,8 @@ void DrawVehicles(Ped player, const Vec3& me) {
 bool IsAimCandidate(Ped p, Ped player, const Vec3& me, float& dist) {
     if (p == player || !Invoke<int>(N::DOES_ENTITY_EXIST, p) || Invoke<int>(N::IS_ENTITY_DEAD, p, 0))
         return false;
+    if (g.aimIgnoreAnimals && !Invoke<int>(N::IS_PED_HUMAN, p))
+        return false;
     dist = Distance(me, Invoke<Vec3>(N::GET_ENTITY_COORDS, p, 1));
     return dist <= g.pedRange;
 }
@@ -224,11 +232,12 @@ Ped FindAimTarget(Ped player, const Vec3& me) {
     return 0;
 }
 
-// Points the gameplay camera (and therefore the crosshair) at the target's head.
+// Points the gameplay camera (and therefore the crosshair) at the target's head or chest.
 void AimAt(Ped player, Ped target) {
-    Vec3 head = Invoke<Vec3>(N::GET_PED_BONE_COORDS, target, kBoneHead, 0.0f, 0.0f, 0.0f);
+    int bone = g.aimBone == AimBone::Head ? kBoneHead : kBoneBody;
+    Vec3 aim = Invoke<Vec3>(N::GET_PED_BONE_COORDS, target, bone, 0.0f, 0.0f, 0.0f);
     Vec3 cam = Invoke<Vec3>(N::GET_GAMEPLAY_CAM_COORD);
-    float dx = head.x - cam.x, dy = head.y - cam.y, dz = head.z - cam.z;
+    float dx = aim.x - cam.x, dy = aim.y - cam.y, dz = aim.z - cam.z;
 
     // GTA headings: 0 = north (+Y), increasing counter-clockwise.
     float heading = std::atan2(-dx, dy) * kRadToDeg;
@@ -273,7 +282,11 @@ const char* TargetsName(Targets t) {
     }
 }
 
-// Small status line in the top-left corner, shown while any feature is on.
+// Small status line near the top-left corner, shown while any feature is on.
+// Offset right so it clears FPS overlays that sit in the corner.
+constexpr float kStatusX = 0.06f;
+constexpr float kStatusY = 0.002f;
+
 void DrawStatus() {
     if (!g.enabled && !g.aim) return;
 
@@ -283,8 +296,8 @@ void DrawStatus() {
                   g.enabled ? TargetsName(g.targets) : "",
                   g.enabled && g.tracers ? " TR" : "",
                   g.enabled && g.aim ? " | " : "",
-                  g.aim ? "AIM" : "");
-    Text(0.003f, 0.002f, status, kWhite, 0.2f, false);
+                  !g.aim ? "" : g.aimBone == AimBone::Head ? "AIM HEAD" : "AIM BODY");
+    Text(kStatusX, kStatusY, status, kWhite, 0.2f, false);
 }
 
 void Tick() {
@@ -292,6 +305,7 @@ void Tick() {
     if (KeyPressed(kKeyTargets)) g.targets = static_cast<Targets>((static_cast<int>(g.targets) + 1) % 3);
     if (KeyPressed(kKeyTracers)) g.tracers = !g.tracers;
     if (KeyPressed(kKeyAim))     { g.aim = !g.aim; g_aimTarget = 0; }
+    if (KeyPressed(kKeyAimBone)) g.aimBone = g.aimBone == AimBone::Head ? AimBone::Body : AimBone::Head;
 
     Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
     Vec3 me = Invoke<Vec3>(N::GET_ENTITY_COORDS, player, 1);

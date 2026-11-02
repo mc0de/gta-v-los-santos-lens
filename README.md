@@ -16,7 +16,7 @@ A [ScriptHookV](http://www.dev-c.com/gtav/scripthookv/) plugin that draws ESP ov
   | Grey | Dead |
 - **Vehicles**: yellow box with localized model name and distance (grey when destroyed).
 - **Tracers** (optional): 3D lines from you to each target.
-- **Auto-aim** (optional): while you hold aim (right mouse), the camera locks onto the head of the nearest living ped you have clear line of sight to. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight, then moves to the next nearest. The locked target's ESP box turns magenta.
+- **Auto-aim** (optional): while you hold aim (right mouse), the camera locks onto the head or chest (switchable) of the nearest living human you have clear line of sight to. Animals are ignored (`aimIgnoreAnimals` in `Settings`). Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight, then moves to the next nearest. The locked target's ESP box turns magenta.
 - Range limits: 250 m for peds, 350 m for vehicles (see `Settings` in `src/main.cpp`).
 
 ## Hotkeys
@@ -27,10 +27,11 @@ A [ScriptHookV](http://www.dev-c.com/gtav/scripthookv/) plugin that draws ESP ov
 | F10 | Cycle targets: peds → vehicles → both |
 | F11 | Toggle tracers |
 | Page Up | Toggle auto-aim |
+| Page Down | Switch aim point: head / body |
 
-F5–F8 are left alone because the game uses them for character switching. Change the keys via `kKeyToggle`, `kKeyTargets`, `kKeyTracers`, `kKeyAim` in `src/main.cpp`.
+F5–F8 are left alone because the game uses them for character switching. Change the keys via `kKeyToggle`, `kKeyTargets`, `kKeyTracers`, `kKeyAim`, `kKeyAimBone` in `src/main.cpp`.
 
-A small status line in the top-left corner shows what's on, e.g. `ESP P+V TR | AIM` (P = peds, V = vehicles, TR = tracers).
+A small status line near the top-left corner shows what's on, e.g. `ESP P+V TR | AIM HEAD` (P = peds, V = vehicles, TR = tracers). It's offset right to clear FPS overlays; adjust `kStatusX` / `kStatusY` to move it.
 
 ## Building
 
