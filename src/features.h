@@ -19,5 +19,6 @@ void AimTick(Ped player, const Vec3& me);
 
 // world.cpp
 void FinderTick(const Vec3& me);
+void LettersTick(const Vec3& me);
 void DamageNumbersTick(Ped player);
 void TeleportToWaypoint();

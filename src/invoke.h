@@ -56,6 +56,7 @@ namespace N {
     constexpr UINT64 SET_ENTITY_COORDS_NO_OFFSET           = 0x239A3351AC1DA385;
     constexpr UINT64 GET_MODEL_DIMENSIONS                  = 0x03E8D3D5F549087A;
     constexpr UINT64 GET_HASH_KEY                          = 0xD24D37CC275948CC;
+    constexpr UINT64 IS_MODEL_VALID                        = 0xC0296A2EDF545E92;
 
     // ped
     constexpr UINT64 IS_PED_HUMAN                          = 0xB980061DA992779D;

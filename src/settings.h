@@ -59,6 +59,10 @@ struct Settings {
     float finderRange = 300.0f;
     std::vector<Collectible> collectibleModels;
 
+    // Letter scraps: show the nearest few of those the game has loaded, ignoring finderRange.
+    bool letters = false;
+    int letterCount = 3;
+
     // Aim
     bool aim = false;
     AimBone aimBone = AimBone::Head;

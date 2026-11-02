@@ -15,6 +15,7 @@ constexpr Color kMagenta { 255,  60, 255, 255 };
 constexpr Color kCyan    {  60, 230, 255, 240 };
 constexpr Color kOrange  { 255, 150,  40, 240 };
 constexpr Color kLilac   { 190, 150, 255, 230 };
+constexpr Color kPink    { 255, 120, 190, 240 };
 
 struct Box2D { float x0, y0, x1, y1; };
 

@@ -12,7 +12,6 @@ std::string g_path;
 // Defaults for the collectible finder. Model names are best-known values and may need adjusting
 // in the [Collectibles] section of the ini.
 const Collectible kDefaultCollectibles[] = {
-    { "prop_ld_scrap",            "Letter scrap" },
     { "prop_power_cell",          "Spaceship part" },
     { "prop_peyote_highland_01",  "Peyote" },
     { "prop_peyote_highland_02",  "Peyote" },
@@ -190,6 +189,8 @@ void ReloadSettings() {
     ReadBool("Finder", "Collectibles", g.collectibles);
     ReadBool("Finder", "Pickups", g.pickups);
     ReadFloat("Finder", "Range", g.finderRange);
+    ReadBool("Finder", "Letters", g.letters);
+    ReadInt("Finder", "LetterCount", g.letterCount);
 
     ReadBool("Aim", "Enabled", g.aim);
     ReadEnum("Aim", "Bone", g.aimBone, kBoneNames);
@@ -232,6 +233,8 @@ void SaveSettings() {
     WriteBool("Finder", "Collectibles", g.collectibles);
     WriteBool("Finder", "Pickups", g.pickups);
     WriteFloat("Finder", "Range", g.finderRange);
+    WriteBool("Finder", "Letters", g.letters);
+    WriteInt("Finder", "LetterCount", g.letterCount);
 
     WriteBool("Aim", "Enabled", g.aim);
     WriteEnum("Aim", "Bone", g.aimBone, kBoneNames);

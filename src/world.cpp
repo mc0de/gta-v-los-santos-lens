@@ -1,4 +1,6 @@
 #include "features.h"
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <unordered_map>
@@ -34,7 +36,7 @@ void Scan() {
             Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
             for (const auto& [hash, label] : g_modelHashes) {
                 if (hash == model) {
-                    g_found.push_back({ objects[i], label.c_str(), kCyan });
+                    g_found.push_back({ objects[i], label.c_str(), kOrange });
                     break;
                 }
             }
@@ -45,8 +47,60 @@ void Scan() {
         static int pickups[512];
         int count = worldGetAllPickups(pickups, 512);
         for (int i = 0; i < count; ++i)
-            g_found.push_back({ pickups[i], "Pickup", kOrange });
+            g_found.push_back({ pickups[i], "Pickup", kCyan });
     }
+}
+
+// ---- Letter scraps ----
+
+// Only scraps the game has streamed in around the player exist as objects, so these are the
+// nearest of the currently loaded ones.
+
+Hash g_scrapModel = 0;
+bool g_scrapModelValid = false;
+bool g_scrapInit = false;
+std::vector<Entity> g_scraps;
+int g_nextScrapScan = 0;
+
+void InitScrapModel() {
+    if (g_scrapInit) return;
+    g_scrapInit = true;
+    g_scrapModel = Invoke<Hash>(N::GET_HASH_KEY, "prop_ld_scrap");
+    g_scrapModelValid = Invoke<int>(N::IS_MODEL_VALID, g_scrapModel) != 0;
+    if (!g_scrapModelValid)
+        Notify("SPESP: letter scrap model not found");
+}
+
+// The object pool can hold thousands of entries, so scan it twice a second rather than every frame.
+void ScanScraps() {
+    static int objects[4096];
+    int count = worldGetAllObjects(objects, 4096);
+    g_scraps.clear();
+    for (int i = 0; i < count; ++i) {
+        if (Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]) == g_scrapModel)
+            g_scraps.push_back(objects[i]);
+    }
+}
+
+void DrawScrap(const Vec3& base, float d) {
+    Vec3 top = base;
+    top.z += 150.0f;
+    // Drawn over terrain so the beam stays visible from a distance.
+    OverlayLine(base, top, WithAlpha(kPink, 0.8f));
+
+    char buf[48];
+    if (d >= 1000.0f) std::snprintf(buf, sizeof buf, "Letter scrap  %.1fkm", d / 1000.0f);
+    else              std::snprintf(buf, sizeof buf, "Letter scrap  %.0fm", d);
+
+    // Label at the beam's base if visible, otherwise partway up so distant ones still get one.
+    float sx, sy;
+    Vec3 labelAt = base;
+    if (!WorldToScreen(base.x, base.y, base.z, sx, sy)) {
+        labelAt.z += 60.0f;
+        if (!WorldToScreen(labelAt.x, labelAt.y, labelAt.z, sx, sy)) return;
+    }
+    Rect(sx, sy, 0.006f / AspectRatio(), 0.006f, kPink);
+    Text(sx, sy + 0.006f, buf, kPink, 0.24f);
 }
 
 // ---- Damage numbers ----
@@ -89,6 +143,31 @@ void FinderTick(const Vec3& me) {
         std::snprintf(buf, sizeof buf, "%s  %.0fm", f.label, dist);
         Text(sx, sy + 0.006f, buf, f.color, 0.24f);
     }
+}
+
+void LettersTick(const Vec3& me) {
+    if (!g.letters) return;
+    InitScrapModel();
+    if (!g_scrapModelValid) return;
+
+    int now = Invoke<int>(N::GET_GAME_TIMER);
+    if (now >= g_nextScrapScan) {
+        g_nextScrapScan = now + 500;
+        ScanScraps();
+    }
+
+    // Nearest loaded scraps, ignoring the finder range.
+    std::vector<std::pair<float, Vec3>> nearby;
+    for (Entity e : g_scraps) {
+        if (!Invoke<int>(N::DOES_ENTITY_EXIST, e)) continue;
+        Vec3 pos = Invoke<Vec3>(N::GET_ENTITY_COORDS, e, 1);
+        nearby.push_back({ Distance(me, pos), pos });
+    }
+    size_t n = (std::min)(nearby.size(), static_cast<size_t>((std::max)(g.letterCount, 0)));
+    std::partial_sort(nearby.begin(), nearby.begin() + n, nearby.end(),
+                      [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (size_t i = 0; i < n; ++i)
+        DrawScrap(nearby[i].second, nearby[i].first);
 }
 
 void DamageNumbersTick(Ped player) {

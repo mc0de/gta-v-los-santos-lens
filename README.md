@@ -44,8 +44,9 @@ While you hold aim (right mouse), the camera locks onto the nearest living ped y
 - **Aim zone**: only targets within N degrees of the crosshair are considered ("any" = no limit). Optionally drawn as a circle.
 
 ### Finder
-- **Collectibles**: cyan markers and a tall beam on collectible props (letter scraps, spaceship parts, peyote plants, nuclear waste). The model list lives in the `[Collectibles]` section of `SPESP.ini`. The default model names are best-known values and haven't all been verified; fix or add entries there. Objects only exist near the player, so this finds items in your surroundings, not across the whole map.
-- **Pickups**: orange markers on weapon / health / armour pickups.
+- **Collectibles**: orange markers and a tall beam on collectible props (spaceship parts, peyote plants, nuclear waste). The model list lives in the `[Collectibles]` section of `SPESP.ini`. The default model names are best-known values and haven't all been verified; fix or add entries there. Objects only exist near the player, so this finds items in your surroundings, not across the whole map.
+- **Pickups**: cyan markers on weapon / health / armour pickups.
+- **Letter scraps**: pink beams (visible through terrain) on the nearest letter scraps, 3 by default (`Letters shown` in the menu), ignoring the finder range. Only scraps the game has loaded around you can be seen, so this shows the nearest ones in your surroundings, not across the whole map. Collected scraps disappear from the world and so from the display. If the scrap model (`prop_ld_scrap`) doesn't exist in the game you get a notification.
 
 ### Misc
 - **Damage numbers**: floating numbers when you damage a ped, red with `KILL` on a kill.
