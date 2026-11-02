@@ -1,6 +1,7 @@
 #pragma once
 // Minimal native invoker on top of the ScriptHookV SDK exports (nativeInit/nativePush64/nativeCall).
 // Calls natives by hash so we don't depend on a particular natives.h naming scheme.
+// Every hash below is checked against the SDK's natives.h.
 
 #include <windows.h>
 #include <cstring>
@@ -35,33 +36,81 @@ inline R Invoke(UINT64 hash, Args... args) {
 }
 
 namespace N {
+    // player
     constexpr UINT64 PLAYER_PED_ID                         = 0xD80958FC74E988A6;
     constexpr UINT64 PLAYER_ID                             = 0x4F8644AF03D0E0D6;
     constexpr UINT64 IS_PLAYER_FREE_AIMING                 = 0x2E397FD2ECD37C87;
+    constexpr UINT64 IS_PLAYER_CONTROL_ON                  = 0x49C32D60007AFA47;
+
+    // entity
     constexpr UINT64 DOES_ENTITY_EXIST                     = 0x7239B21A38F536BA;
-    constexpr UINT64 GET_ENTITY_HEADING                    = 0xE83D4F9BA2A38914;
-    constexpr UINT64 HAS_ENTITY_CLEAR_LOS_TO_ENTITY        = 0xFCDFF7B72D23A1AC;
-    constexpr UINT64 GET_PED_BONE_COORDS                   = 0x17C07FC640E86B4E;
-    constexpr UINT64 IS_PED_HUMAN                          = 0xB980061DA992779D;
-    constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;
-    constexpr UINT64 SET_GAMEPLAY_CAM_RELATIVE_HEADING     = 0xB4EC2312F4E5B1F1;
-    constexpr UINT64 SET_GAMEPLAY_CAM_RELATIVE_PITCH       = 0x6D0858B8EDFD2B7D;
     constexpr UINT64 GET_ENTITY_COORDS                     = 0x3FEF770D40960D5A;
     constexpr UINT64 GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS = 0x1899F328B0E12848;
     constexpr UINT64 GET_ENTITY_MODEL                      = 0x9F47B058362C84B5;
+    constexpr UINT64 GET_ENTITY_HEADING                    = 0xE83D4F9BA2A38914;
     constexpr UINT64 GET_ENTITY_HEALTH                     = 0xEEF059FAD016D209;
     constexpr UINT64 GET_ENTITY_MAX_HEALTH                 = 0x15D757606D170C3C;
     constexpr UINT64 IS_ENTITY_DEAD                        = 0x5F9532F3B5CC2551;
+    constexpr UINT64 HAS_ENTITY_CLEAR_LOS_TO_ENTITY        = 0xFCDFF7B72D23A1AC;
+    constexpr UINT64 HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY     = 0xC86D67D52A707CF8;
+    constexpr UINT64 CLEAR_ENTITY_LAST_DAMAGE_ENTITY       = 0xA72CD9CA74A5ECBA;
+    constexpr UINT64 SET_ENTITY_COORDS_NO_OFFSET           = 0x239A3351AC1DA385;
     constexpr UINT64 GET_MODEL_DIMENSIONS                  = 0x03E8D3D5F549087A;
+    constexpr UINT64 GET_HASH_KEY                          = 0xD24D37CC275948CC;
+
+    // ped
+    constexpr UINT64 IS_PED_HUMAN                          = 0xB980061DA992779D;
     constexpr UINT64 GET_PED_TYPE                          = 0xFF059E1E4C01E63C;
+    constexpr UINT64 GET_PED_ARMOUR                        = 0x9483AF821605B1D8;
+    constexpr UINT64 GET_PED_BONE_COORDS                   = 0x17C07FC640E86B4E;
     constexpr UINT64 IS_PED_IN_COMBAT                      = 0x4859F1FC66A6278E;
+    constexpr UINT64 IS_PED_IN_ANY_VEHICLE                 = 0x997ABD671D25CA0B;
+    constexpr UINT64 GET_VEHICLE_PED_IS_USING              = 0x6094AD011A2EA87D;
     constexpr UINT64 GET_RELATIONSHIP_BETWEEN_PEDS         = 0xEBA5AD3A0EAF7121;
+    constexpr UINT64 GET_SELECTED_PED_WEAPON               = 0x0A6DB4965674D243;
+    constexpr UINT64 GIVE_DELAYED_WEAPON_TO_PED            = 0xB282DC6EBD803C75;
+
+    // vehicle
     constexpr UINT64 GET_DISPLAY_NAME_FROM_VEHICLE_MODEL   = 0xB215AAC32D25D019;
-    constexpr UINT64 GET_FILENAME_FOR_AUDIO_CONVERSATION   = 0x7B5280EBA9840C72; // a.k.a. GET_LABEL_TEXT
+    constexpr UINT64 GET_PED_IN_VEHICLE_SEAT               = 0xBB40DD2270B65366;
+    constexpr UINT64 GET_VEHICLE_DOOR_LOCK_STATUS          = 0x25BC98A59C2EA962;
+    constexpr UINT64 GET_VEHICLE_CLASS                     = 0x29439776AAA00A62;
+
+    // camera
+    constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;
+    constexpr UINT64 GET_GAMEPLAY_CAM_ROT                  = 0x837765A25378F0BB;
+    constexpr UINT64 GET_GAMEPLAY_CAM_FOV                  = 0x65019750A0324133;
+    constexpr UINT64 GET_FINAL_RENDERED_CAM_COORD          = 0xA200EB1EE790F448; // SDK: _GET_GAMEPLAY_CAM_COORDS
+    constexpr UINT64 GET_GAMEPLAY_CAM_RELATIVE_HEADING     = 0x743607648ADD4587;
+    constexpr UINT64 GET_GAMEPLAY_CAM_RELATIVE_PITCH       = 0x3A6867B4845BEDA2;
+    constexpr UINT64 SET_GAMEPLAY_CAM_RELATIVE_HEADING     = 0xB4EC2312F4E5B1F1;
+    constexpr UINT64 SET_GAMEPLAY_CAM_RELATIVE_PITCH       = 0x6D0858B8EDFD2B7D;
+
+    // world / misc
+    constexpr UINT64 GET_GROUND_Z_FOR_3D_COORD             = 0xC906A7DAB05C8D2B;
+    constexpr UINT64 GET_GAME_TIMER                        = 0x9CD27B0045628463;
+    constexpr UINT64 IS_PAUSE_MENU_ACTIVE                  = 0xB0034A223497FFCB;
+    constexpr UINT64 DISABLE_CONTROL_ACTION                = 0xFE99B66D079CF6BC;
+
+    // blips
+    constexpr UINT64 GET_BLIP_INFO_ID_ITERATOR             = 0x186E5D252FA50E7D;
+    constexpr UINT64 GET_FIRST_BLIP_INFO_ID                = 0x1BEDE233E6CD2A1F;
+    constexpr UINT64 GET_NEXT_BLIP_INFO_ID                 = 0x14F96AA50D6FBEA7;
+    constexpr UINT64 GET_BLIP_INFO_ID_TYPE                 = 0xBE9B0959FFD0779B;
+    constexpr UINT64 GET_BLIP_INFO_ID_COORD                = 0xFA7C7F0AADF25D09;
+    constexpr UINT64 DOES_BLIP_EXIST                       = 0xA6DB27D19ECBB7DA;
+
+    // drawing
     constexpr UINT64 GET_SCREEN_COORD_FROM_WORLD_COORD     = 0x34E82F05DF2974F5;
     constexpr UINT64 GET_ASPECT_RATIO                      = 0xF1307EF624A80D87;
     constexpr UINT64 DRAW_RECT                             = 0x3A618A217E5154F0;
     constexpr UINT64 DRAW_LINE                             = 0x6B7256074AE34680;
+    constexpr UINT64 DRAW_SPRITE                           = 0xE7FFAE5EBF23D890;
+    constexpr UINT64 REQUEST_STREAMED_TEXTURE_DICT         = 0xDFA2EF8E04127DD5;
+    constexpr UINT64 HAS_STREAMED_TEXTURE_DICT_LOADED      = 0x0145F696AAAAD2E4;
+
+    // text
+    constexpr UINT64 GET_FILENAME_FOR_AUDIO_CONVERSATION   = 0x7B5280EBA9840C72; // a.k.a. GET_LABEL_TEXT
     constexpr UINT64 SET_TEXT_FONT                         = 0x66E0276CC5F6B9DA;
     constexpr UINT64 SET_TEXT_SCALE                        = 0x07C837F9A01C34C9;
     constexpr UINT64 SET_TEXT_COLOUR                       = 0xBE6B23FFA53FB442;
@@ -70,4 +119,6 @@ namespace N {
     constexpr UINT64 BEGIN_TEXT_COMMAND_DISPLAY_TEXT       = 0x25FBB336DF1804CB;
     constexpr UINT64 ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME = 0x6C188BE134E074AA;
     constexpr UINT64 END_TEXT_COMMAND_DISPLAY_TEXT         = 0xCD015E5BB0D96A57;
+    constexpr UINT64 SET_NOTIFICATION_TEXT_ENTRY           = 0x202709F4C58A0424;
+    constexpr UINT64 DRAW_NOTIFICATION                     = 0x2ED7843F8F801023;
 }
