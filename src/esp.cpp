@@ -86,14 +86,19 @@ const EspStyle& StyleFor(PedCategory c) {
     }
 }
 
+// Hostiles: green when you have a clear shot, red when they're behind cover.
+Color ThreatColor(Ped p, Ped player) {
+    return HasLineOfSight(player, p) ? kGreen : kRed;
+}
+
 Color CategoryColor(PedCategory c, Ped p, Ped player) {
     switch (c) {
-        case PedCategory::Hostile: return kRed;
-        case PedCategory::Animal:  return IsThreat(p, player) ? kRed : kTan; // red while attacking you
+        case PedCategory::Hostile: return ThreatColor(p, player);
+        case PedCategory::Animal:  return IsThreat(p, player) ? ThreatColor(p, player) : kTan;
         case PedCategory::Cop:     return kBlue;
         default:
             // companion / respect / like
-            return Invoke<int>(N::GET_RELATIONSHIP_BETWEEN_PEDS, p, player) <= 2 ? kGreen : kWhite;
+            return Invoke<int>(N::GET_RELATIONSHIP_BETWEEN_PEDS, p, player) <= 2 ? kLilac : kWhite;
     }
 }
 

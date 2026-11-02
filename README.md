@@ -11,10 +11,10 @@ Targets are sorted into categories, and for each category you choose what to dra
 
 | Category | Who | Colour |
 |---|---|---|
-| Animals | All animals | Tan, red while attacking you |
-| Hostiles | People fighting you or hostile toward you (hate / dislike), including cops chasing you | Red |
+| Animals | All animals | Tan; while attacking you, same as hostiles |
+| Hostiles | People fighting you or hostile toward you (hate / dislike), including cops chasing you | **Green** if you have a clear line of sight (you can shoot them), **red** if they're behind cover |
 | Cops | Cops, SWAT, army that aren't after you | Blue |
-| Pedestrians | Everyone else | Green if friendly, white if neutral |
+| Pedestrians | Everyone else | Light purple if friendly, white if neutral |
 | Vehicles | All vehicles except the one you're in | Blue for emergency, yellow otherwise |
 
 | Column | What it draws |

@@ -8,7 +8,6 @@ namespace {
 
 constexpr int kBoneHead = 31086;      // SKEL_Head
 constexpr int kBoneBody = 24818;      // SKEL_Spine3 (upper chest)
-constexpr int kLosTraceFlags = 17;    // world geometry + vehicles + objects
 constexpr float kRadToDeg = 57.2957795f;
 constexpr float kDegToRad = 0.0174532925f;
 constexpr float kPi = 3.14159265f;
@@ -60,10 +59,6 @@ bool IsAimCandidate(Ped p, Ped player, const Vec3& me, float& dist) {
     if (g.aimPriority == AimPriority::HostilesOnly && !IsThreat(p, player))
         return false;
     return true;
-}
-
-bool HasLineOfSight(Ped player, Ped p) {
-    return Invoke<int>(N::HAS_ENTITY_CLEAR_LOS_TO_ENTITY, player, p, kLosTraceFlags) != 0;
 }
 
 // Best visible ped: hostiles first if requested, then nearest.
@@ -138,6 +133,11 @@ void DrawFovCircle() {
 }
 
 } // namespace
+
+bool HasLineOfSight(Ped player, Ped p) {
+    constexpr int kLosTraceFlags = 17; // world geometry + vehicles + objects
+    return Invoke<int>(N::HAS_ENTITY_CLEAR_LOS_TO_ENTITY, player, p, kLosTraceFlags) != 0;
+}
 
 // Holds the current target while it stays valid and visible; re-acquires otherwise.
 void AimTick(Ped player, const Vec3& me) {

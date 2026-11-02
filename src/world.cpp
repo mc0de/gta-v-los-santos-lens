@@ -110,13 +110,15 @@ void DamageNumbersTick(Ped player) {
         int hp = Invoke<int>(N::GET_ENTITY_HEALTH, p) + Invoke<int>(N::GET_PED_ARMOUR, p);
         hpNow[p] = hp;
 
+        // Health drop since last frame, on a ped the player has damaged. The game's damage
+        // record is read-only here: clearing it would break mission scripts that count the
+        // player's kills through it.
         auto it = g_lastHp.find(p);
         if (it == g_lastHp.end() || hp >= it->second) continue;
         if (!Invoke<int>(N::HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY, p, player, 1)) continue;
 
         Vec3 head = Invoke<Vec3>(N::GET_PED_BONE_COORDS, p, 31086, 0.0f, 0.0f, 0.0f);
         g_popups.push_back({ head, it->second - hp, Invoke<int>(N::IS_ENTITY_DEAD, p, 0) != 0, now });
-        Invoke(N::CLEAR_ENTITY_LAST_DAMAGE_ENTITY, p);
     }
     g_lastHp.swap(hpNow);
 

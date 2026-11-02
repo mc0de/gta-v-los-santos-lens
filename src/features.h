@@ -7,6 +7,8 @@
 extern Ped g_aimTarget;
 
 bool IsThreat(Ped p, Ped player);
+// Clear line of sight from the player (walls, vehicles and objects block it).
+bool HasLineOfSight(Ped player, Ped p);
 bool IsLawEnforcement(Ped p);
 
 // esp.cpp
