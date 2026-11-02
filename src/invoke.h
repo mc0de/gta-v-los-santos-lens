@@ -36,6 +36,15 @@ inline R Invoke(UINT64 hash, Args... args) {
 
 namespace N {
     constexpr UINT64 PLAYER_PED_ID                         = 0xD80958FC74E988A6;
+    constexpr UINT64 PLAYER_ID                             = 0x4F8644AF03D0E0D6;
+    constexpr UINT64 IS_PLAYER_FREE_AIMING                 = 0x2E397FD2ECD37C87;
+    constexpr UINT64 DOES_ENTITY_EXIST                     = 0x7239B21A38F536BA;
+    constexpr UINT64 GET_ENTITY_HEADING                    = 0xE83D4F9BA2A38914;
+    constexpr UINT64 HAS_ENTITY_CLEAR_LOS_TO_ENTITY        = 0xFCDFF7B72D23A1AC;
+    constexpr UINT64 GET_PED_BONE_COORDS                   = 0x17C07FC640E86B4E;
+    constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;
+    constexpr UINT64 SET_GAMEPLAY_CAM_RELATIVE_HEADING     = 0xB4EC2312F4E5B1F1;
+    constexpr UINT64 SET_GAMEPLAY_CAM_RELATIVE_PITCH       = 0x6D0858B8EDFD2B7D;
     constexpr UINT64 GET_ENTITY_COORDS                     = 0x3FEF770D40960D5A;
     constexpr UINT64 GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS = 0x1899F328B0E12848;
     constexpr UINT64 GET_ENTITY_MODEL                      = 0x9F47B058362C84B5;
@@ -54,7 +63,7 @@ namespace N {
     constexpr UINT64 DRAW_LINE                             = 0x6B7256074AE34680;
     constexpr UINT64 SET_TEXT_FONT                         = 0x66E0276CC5F6B9DA;
     constexpr UINT64 SET_TEXT_SCALE                        = 0x07C837F9A01C34C9;
-    constexpr UINT64 SET_TEXT_COLOUR                       = 0xBE6B23FFBBD77D82;
+    constexpr UINT64 SET_TEXT_COLOUR                       = 0xBE6B23FFA53FB442;
     constexpr UINT64 SET_TEXT_CENTRE                       = 0xC02F4DBFB51D988B;
     constexpr UINT64 SET_TEXT_OUTLINE                      = 0x2513DFB0FB8400FE;
     constexpr UINT64 BEGIN_TEXT_COMMAND_DISPLAY_TEXT       = 0x25FBB336DF1804CB;

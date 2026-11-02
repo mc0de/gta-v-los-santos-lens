@@ -2,3 +2,4 @@ build/
 sdk/
 .vs/
 *.asi
+*.sublime-workspace

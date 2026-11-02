@@ -1,5 +1,6 @@
 // Single-player ESP for GTA V (ScriptHookV plugin).
-// F9 toggle ESP, F10 cycle targets (peds / vehicles / both), F11 toggle tracers.
+// F9 toggle ESP, F10 cycle targets (peds / vehicles / both), F11 toggle tracers,
+// Page Up toggle auto-aim (locks onto the nearest visible ped while you hold aim).
 // (F5-F8 are the game's character-switch keys.)
 
 #include "invoke.h"
@@ -14,10 +15,16 @@ enum class Targets { Peds, Vehicles, Both };
 constexpr int kKeyToggle  = VK_F9;
 constexpr int kKeyTargets = VK_F10;
 constexpr int kKeyTracers = VK_F11;
+constexpr int kKeyAim     = VK_PRIOR; // Page Up
+
+constexpr int kBoneHead = 31086;      // SKEL_Head
+constexpr int kLosTraceFlags = 17;    // world geometry + vehicles + objects
+constexpr float kRadToDeg = 57.2957795f;
 
 struct Settings {
     bool enabled = true;
     bool tracers = false;
+    bool aim = false;
     Targets targets = Targets::Both;
     float pedRange = 250.0f;
     float vehRange = 350.0f;
@@ -31,6 +38,9 @@ constexpr Color kGreen   {  80, 255, 120, 230 };
 constexpr Color kBlue    {  80, 160, 255, 230 };
 constexpr Color kGrey    { 140, 140, 140, 160 };
 constexpr Color kYellow  { 255, 210,  60, 230 };
+constexpr Color kMagenta { 255,  60, 255, 255 };
+
+Ped g_aimTarget = 0;
 
 float Distance(const Vec3& a, const Vec3& b) {
     float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
@@ -45,11 +55,11 @@ void Rect(float cx, float cy, float w, float h, Color c) {
     Invoke(N::DRAW_RECT, cx, cy, w, h, c.r, c.g, c.b, c.a, 0);
 }
 
-void Text(float x, float y, const char* s, Color c, float scale = 0.26f) {
+void Text(float x, float y, const char* s, Color c, float scale = 0.26f, bool centre = true) {
     Invoke(N::SET_TEXT_FONT, 0);
     Invoke(N::SET_TEXT_SCALE, 0.0f, scale);
     Invoke(N::SET_TEXT_COLOUR, c.r, c.g, c.b, 255);
-    Invoke(N::SET_TEXT_CENTRE, 1);
+    Invoke(N::SET_TEXT_CENTRE, centre ? 1 : 0);
     Invoke(N::SET_TEXT_OUTLINE);
     Invoke(N::BEGIN_TEXT_COMMAND_DISPLAY_TEXT, "STRING");
     Invoke(N::ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME, s);
@@ -136,7 +146,7 @@ void DrawPeds(Ped player, const Vec3& me) {
         Box2D box;
         if (!ScreenBox(p, box)) continue;
 
-        Color c = PedColor(p, player);
+        Color c = (p == g_aimTarget) ? kMagenta : PedColor(p, player);
         DrawBox(box, c);
 
         int hp = Invoke<int>(N::GET_ENTITY_HEALTH, p);
@@ -181,6 +191,72 @@ void DrawVehicles(Ped player, const Vec3& me) {
     }
 }
 
+bool IsAimCandidate(Ped p, Ped player, const Vec3& me, float& dist) {
+    if (p == player || !Invoke<int>(N::DOES_ENTITY_EXIST, p) || Invoke<int>(N::IS_ENTITY_DEAD, p, 0))
+        return false;
+    dist = Distance(me, Invoke<Vec3>(N::GET_ENTITY_COORDS, p, 1));
+    return dist <= g.pedRange;
+}
+
+bool HasLineOfSight(Ped player, Ped p) {
+    return Invoke<int>(N::HAS_ENTITY_CLEAR_LOS_TO_ENTITY, player, p, kLosTraceFlags) != 0;
+}
+
+// Nearest living ped that isn't hidden behind world geometry, vehicles or objects.
+// Candidates are LOS-tested nearest-first, since the raycast is the expensive part.
+Ped FindAimTarget(Ped player, const Vec3& me) {
+    static int peds[512];
+    static std::pair<float, Ped> candidates[512];
+    int count = worldGetAllPeds(peds, 512);
+    int n = 0;
+
+    for (int i = 0; i < count; ++i) {
+        float dist;
+        if (IsAimCandidate(peds[i], player, me, dist))
+            candidates[n++] = { dist, peds[i] };
+    }
+    std::sort(candidates, candidates + n);
+
+    for (int i = 0; i < n; ++i) {
+        if (HasLineOfSight(player, candidates[i].second))
+            return candidates[i].second;
+    }
+    return 0;
+}
+
+// Points the gameplay camera (and therefore the crosshair) at the target's head.
+void AimAt(Ped player, Ped target) {
+    Vec3 head = Invoke<Vec3>(N::GET_PED_BONE_COORDS, target, kBoneHead, 0.0f, 0.0f, 0.0f);
+    Vec3 cam = Invoke<Vec3>(N::GET_GAMEPLAY_CAM_COORD);
+    float dx = head.x - cam.x, dy = head.y - cam.y, dz = head.z - cam.z;
+
+    // GTA headings: 0 = north (+Y), increasing counter-clockwise.
+    float heading = std::atan2(-dx, dy) * kRadToDeg;
+    float pitch = std::atan2(dz, std::sqrt(dx * dx + dy * dy)) * kRadToDeg;
+
+    float rel = heading - Invoke<float>(N::GET_ENTITY_HEADING, player);
+    while (rel > 180.0f)  rel -= 360.0f;
+    while (rel < -180.0f) rel += 360.0f;
+
+    Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_HEADING, rel);
+    Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_PITCH, pitch, 1.0f);
+}
+
+// Holds the current target while it stays alive and visible; re-acquires the nearest otherwise.
+void UpdateAim(Ped player, const Vec3& me) {
+    if (!Invoke<int>(N::IS_PLAYER_FREE_AIMING, Invoke<Player>(N::PLAYER_ID))) {
+        g_aimTarget = 0;
+        return;
+    }
+
+    float dist;
+    if (!g_aimTarget || !IsAimCandidate(g_aimTarget, player, me, dist) || !HasLineOfSight(player, g_aimTarget))
+        g_aimTarget = FindAimTarget(player, me);
+
+    if (g_aimTarget)
+        AimAt(player, g_aimTarget);
+}
+
 bool KeyPressed(int vk) {
     static bool down[256];
     bool now = (GetAsyncKeyState(vk) & 0x8000) != 0;
@@ -191,28 +267,43 @@ bool KeyPressed(int vk) {
 
 const char* TargetsName(Targets t) {
     switch (t) {
-        case Targets::Peds:     return "peds";
-        case Targets::Vehicles: return "vehicles";
-        default:                return "peds + vehicles";
+        case Targets::Peds:     return "P";
+        case Targets::Vehicles: return "V";
+        default:                return "P+V";
     }
+}
+
+// Small status line in the top-left corner, shown while any feature is on.
+void DrawStatus() {
+    if (!g.enabled && !g.aim) return;
+
+    char status[64];
+    std::snprintf(status, sizeof status, "%s%s%s%s%s",
+                  g.enabled ? "ESP " : "",
+                  g.enabled ? TargetsName(g.targets) : "",
+                  g.enabled && g.tracers ? " TR" : "",
+                  g.enabled && g.aim ? " | " : "",
+                  g.aim ? "AIM" : "");
+    Text(0.003f, 0.002f, status, kWhite, 0.2f, false);
 }
 
 void Tick() {
     if (KeyPressed(kKeyToggle))  g.enabled = !g.enabled;
     if (KeyPressed(kKeyTargets)) g.targets = static_cast<Targets>((static_cast<int>(g.targets) + 1) % 3);
     if (KeyPressed(kKeyTracers)) g.tracers = !g.tracers;
-
-    if (!g.enabled) return;
+    if (KeyPressed(kKeyAim))     { g.aim = !g.aim; g_aimTarget = 0; }
 
     Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
     Vec3 me = Invoke<Vec3>(N::GET_ENTITY_COORDS, player, 1);
 
-    if (g.targets != Targets::Vehicles) DrawPeds(player, me);
-    if (g.targets != Targets::Peds)     DrawVehicles(player, me);
+    if (g.aim) UpdateAim(player, me);
 
-    char status[96];
-    std::snprintf(status, sizeof status, "ESP: %s%s", TargetsName(g.targets), g.tracers ? " | tracers" : "");
-    Text(0.08f, 0.01f, status, kWhite, 0.3f);
+    if (g.enabled) {
+        if (g.targets != Targets::Vehicles) DrawPeds(player, me);
+        if (g.targets != Targets::Peds)     DrawVehicles(player, me);
+    }
+
+    DrawStatus();
 }
 
 void ScriptMain() {
