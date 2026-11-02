@@ -58,6 +58,8 @@ struct Settings {
     bool pickups = false;
     float finderRange = 300.0f;
     std::vector<Collectible> collectibleModels;
+    // Names for non-weapon pickups (health, armour, ...); weapon pickups are named automatically.
+    std::vector<Collectible> pickupModels;
 
     // Letter scraps: show the nearest few of those the game has loaded, ignoring finderRange.
     bool letters = false;

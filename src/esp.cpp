@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iterator>
 
 namespace {
 
@@ -39,13 +40,17 @@ WeaponName kWeapons[] = {
     { "WEAPON_MOLOTOV", "Molotov" }, { "WEAPON_STICKYBOMB", "Sticky Bomb" },
 };
 Hash g_unarmed = 0;
+// World model of each weapon in kWeapons, for naming weapon pickups.
+Hash g_weaponModels[sizeof kWeapons / sizeof kWeapons[0]] = {};
 
 // Natives can only run on the script thread, so weapon hashes are resolved on first use.
 void InitWeaponNames() {
     if (g_unarmed) return;
     g_unarmed = Invoke<Hash>(N::GET_HASH_KEY, "WEAPON_UNARMED");
-    for (auto& w : kWeapons)
-        w.hash = Invoke<Hash>(N::GET_HASH_KEY, w.model);
+    for (size_t i = 0; i < std::size(kWeapons); ++i) {
+        kWeapons[i].hash = Invoke<Hash>(N::GET_HASH_KEY, kWeapons[i].model);
+        g_weaponModels[i] = Invoke<Hash>(N::GET_WEAPONTYPE_MODEL, kWeapons[i].hash);
+    }
 }
 
 // Returns nullptr for unarmed peds and for weapon hashes not in kWeapons, which include
@@ -270,6 +275,14 @@ void DrawThreatArrows(Ped player, const Vec3& me) {
 }
 
 } // namespace
+
+const char* WeaponLabelForModel(Hash model) {
+    InitWeaponNames();
+    if (model == 0) return nullptr;
+    for (size_t i = 0; i < std::size(kWeapons); ++i)
+        if (g_weaponModels[i] == model) return kWeapons[i].label;
+    return nullptr;
+}
 
 bool IsLawEnforcement(Ped p) {
     switch (Invoke<int>(N::GET_PED_TYPE, p)) {

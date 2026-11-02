@@ -22,6 +22,17 @@ const Collectible kDefaultCollectibles[] = {
     { "prop_rad_waste_barrel_01", "Nuclear waste" },
 };
 
+// Names for non-weapon pickups, by model. Best-known values, adjustable in the [Pickups] section.
+// Weapon pickups don't need entries: they're named from the weapon list.
+const Collectible kDefaultPickups[] = {
+    { "prop_ld_health_pack",   "Health" },
+    { "prop_armour_pickup",    "Armour" },
+    { "prop_ld_ammo_pack_01",  "Ammo" },
+    { "prop_ld_ammo_pack_02",  "Ammo" },
+    { "prop_ld_ammo_pack_03",  "Ammo" },
+    { "prop_parachute",        "Parachute" },
+};
+
 struct KeyName { const char* name; int vk; };
 const KeyName kKeyNames[] = {
     { "None", 0 },
@@ -144,20 +155,33 @@ void DeleteObsoleteKeys() {
     for (const char* k : kEsp)  WritePrivateProfileStringA("ESP", k, nullptr, g_path.c_str());
 }
 
-void ReadCollectibles() {
+// Reads a "model=Label" section, falling back to the defaults if it's missing or empty.
+template <size_t Count>
+void ReadModelList(const char* section, std::vector<Collectible>& out, const Collectible (&defaults)[Count]) {
     std::vector<char> buf(32 * 1024);
-    DWORD len = GetPrivateProfileSectionA("Collectibles", buf.data(), static_cast<DWORD>(buf.size()), g_path.c_str());
-    g.collectibleModels.clear();
+    DWORD len = GetPrivateProfileSectionA(section, buf.data(), static_cast<DWORD>(buf.size()), g_path.c_str());
+    out.clear();
 
     // Section data is "model=Label\0model=Label\0\0".
     for (const char* p = buf.data(); p < buf.data() + len && *p; p += std::strlen(p) + 1) {
         const char* eq = std::strchr(p, '=');
         if (!eq || *p == ';' || *p == '#') continue;
-        g.collectibleModels.push_back({ std::string(p, eq), std::string(eq + 1) });
+        out.push_back({ std::string(p, eq), std::string(eq + 1) });
     }
 
-    if (g.collectibleModels.empty())
-        g.collectibleModels.assign(std::begin(kDefaultCollectibles), std::end(kDefaultCollectibles));
+    if (out.empty())
+        out.assign(std::begin(defaults), std::end(defaults));
+}
+
+// Rewrites a "model=Label" section wholesale ("key=value\0...\0\0").
+void WriteModelList(const char* section, const std::vector<Collectible>& list) {
+    std::string data;
+    for (const auto& c : list) {
+        data += c.model + "=" + c.label;
+        data.push_back('\0');
+    }
+    data.push_back('\0');
+    WritePrivateProfileSectionA(section, data.c_str(), g_path.c_str());
 }
 
 } // namespace
@@ -205,7 +229,8 @@ void ReloadSettings() {
     ReadFloat("Misc", "StatusX", g.statusX);
     ReadFloat("Misc", "StatusY", g.statusY);
 
-    ReadCollectibles();
+    ReadModelList("Collectibles", g.collectibleModels, kDefaultCollectibles);
+    ReadModelList("Pickups", g.pickupModels, kDefaultPickups);
 }
 
 void SaveSettings() {
@@ -249,14 +274,8 @@ void SaveSettings() {
     WriteFloat("Misc", "StatusX", g.statusX);
     WriteFloat("Misc", "StatusY", g.statusY);
 
-    // Rewrite the collectibles section wholesale ("key=value\0...\0\0").
-    std::string section;
-    for (const auto& c : g.collectibleModels) {
-        section += c.model + "=" + c.label;
-        section.push_back('\0');
-    }
-    section.push_back('\0');
-    WritePrivateProfileSectionA("Collectibles", section.c_str(), g_path.c_str());
+    WriteModelList("Collectibles", g.collectibleModels);
+    WriteModelList("Pickups", g.pickupModels);
 }
 
 void LoadSettings(HMODULE module) {

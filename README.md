@@ -45,11 +45,11 @@ While you hold aim (right mouse), the camera locks onto the nearest living ped y
 
 ### Finder
 - **Collectibles**: orange markers and a tall beam on collectible props (spaceship parts, peyote plants, nuclear waste). The model list lives in the `[Collectibles]` section of `SPESP.ini`. The default model names are best-known values and haven't all been verified; fix or add entries there. Objects only exist near the player, so this finds items in your surroundings, not across the whole map.
-- **Pickups**: cyan markers on weapon / health / armour pickups.
+- **Pickups**: cyan markers on weapon / health / armour pickups, labelled with what they are. Weapon pickups are named automatically, from the same weapon list the ESP uses. Other pickups are named from the `[Pickups]` section of `SPESP.ini`. Its default model names (health, armour, ammo, parachute) are best-known values and haven't been verified, so fix or add entries there. Anything unrecognised shows as `Pickup`. Letter scraps aren't shown here, because they have their own display.
 - **Letter scraps**: pink beams (visible through terrain) on the nearest letter scraps, 3 by default (`Letters shown` in the menu), ignoring the finder range. Only scraps the game has loaded around you can be seen, so this shows the nearest ones in your surroundings, not across the whole map. Collected scraps disappear from the world and so from the display. If the scrap model (`prop_ld_scrap`) doesn't exist in the game you get a notification.
 
 ### Misc
-- **Damage numbers**: floating numbers when you damage a ped, red with `KILL` on a kill.
+- **Damage numbers**: bright yellow floating numbers when you damage a ped, red with `KILL` on a kill.
 - **Teleport to waypoint**: set a map marker and press End (or use the menu). In a vehicle, the vehicle comes with you. If no ground is found (e.g. open sea) you're dropped from the sky with a parachute.
 
 ## Menu and hotkeys
@@ -78,6 +78,7 @@ Created next to `SPESP.asi` with defaults on first run. Edit it while the game r
 - `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position (0–1 screen fractions).
 - `[ESP.Hostiles]`, `[ESP.Cops]`, `[ESP.Pedestrians]`, `[ESP.Animals]`, `[ESP.Vehicles]`: the grid, with keys `Enabled`, `Box`, `Health`, `Distance`, `Labels`, `Tracers`.
 - `[Collectibles]`: `model_name=Label` lines.
+- `[Pickups]`: `model_name=Label` lines naming non-weapon pickups.
 
 ## Building
 

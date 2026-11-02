@@ -12,16 +12,25 @@ namespace {
 
 struct Found { Entity entity; const char* label; Color color; };
 
-// Labels in g_found point into g_modelHashes, so both are rebuilt together on every scan.
+using ModelLabels = std::vector<std::pair<Hash, std::string>>;
+
+// Labels in g_found point into these lists, so they're all rebuilt together on every scan.
 // Rebuilding (rather than caching) also picks up "Reload settings file" changes.
-std::vector<std::pair<Hash, std::string>> g_modelHashes;
+ModelLabels g_collectibleHashes;
+ModelLabels g_pickupHashes;
 std::vector<Found> g_found;
 int g_nextScan = 0;
 
-void ResolveModelHashes() {
-    g_modelHashes.clear();
-    for (const auto& c : g.collectibleModels)
-        g_modelHashes.push_back({ Invoke<Hash>(N::GET_HASH_KEY, c.model.c_str()), c.label });
+void ResolveModelHashes(const std::vector<Collectible>& models, ModelLabels& out) {
+    out.clear();
+    for (const auto& c : models)
+        out.push_back({ Invoke<Hash>(N::GET_HASH_KEY, c.model.c_str()), c.label });
+}
+
+const char* FindLabel(const ModelLabels& list, Hash model) {
+    for (const auto& [hash, label] : list)
+        if (hash == model) return label.c_str();
+    return nullptr;
 }
 
 // The object pool can hold thousands of entries, so scan it twice a second rather than every frame.
@@ -29,25 +38,29 @@ void Scan() {
     g_found.clear();
 
     if (g.collectibles) {
-        ResolveModelHashes();
+        ResolveModelHashes(g.collectibleModels, g_collectibleHashes);
         static int objects[4096];
         int count = worldGetAllObjects(objects, 4096);
         for (int i = 0; i < count; ++i) {
             Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
-            for (const auto& [hash, label] : g_modelHashes) {
-                if (hash == model) {
-                    g_found.push_back({ objects[i], label.c_str(), kOrange });
-                    break;
-                }
-            }
+            if (const char* label = FindLabel(g_collectibleHashes, model))
+                g_found.push_back({ objects[i], label, kOrange });
         }
     }
 
     if (g.pickups) {
+        ResolveModelHashes(g.pickupModels, g_pickupHashes);
+        // Letter scraps are pickups too, but they have their own display.
+        Hash scrap = Invoke<Hash>(N::GET_HASH_KEY, "prop_ld_scrap");
         static int pickups[512];
         int count = worldGetAllPickups(pickups, 512);
-        for (int i = 0; i < count; ++i)
-            g_found.push_back({ pickups[i], "Pickup", kCyan });
+        for (int i = 0; i < count; ++i) {
+            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, pickups[i]);
+            if (model == scrap) continue;
+            const char* label = WeaponLabelForModel(model);
+            if (!label) label = FindLabel(g_pickupHashes, model);
+            g_found.push_back({ pickups[i], label ? label : "Pickup", kCyan });
+        }
     }
 }
 
@@ -108,6 +121,9 @@ void DrawScrap(const Vec3& base, float d) {
 struct Popup { Vec3 pos; int amount; bool kill; int start; };
 
 constexpr int kPopupLifetimeMs = 1000;
+// Fully saturated so the numbers stand out against bright scenery.
+constexpr Color kDamageHit  { 255, 235,   0, 255 };
+constexpr Color kDamageKill { 255,  25,  25, 255 };
 std::vector<Popup> g_popups;
 std::unordered_map<Ped, int> g_lastHp;
 
@@ -214,7 +230,9 @@ void DamageNumbersTick(Ped player) {
         float sx, sy;
         if (WorldToScreen(pop.pos.x, pop.pos.y, pop.pos.z + 0.3f + t * 0.8f, sx, sy)) {
             std::snprintf(buf, sizeof buf, pop.kill ? "-%d KILL" : "-%d", pop.amount);
-            Text(sx, sy, buf, WithAlpha(pop.kill ? kRed : kYellow, 1.0f - t), pop.kill ? 0.42f : 0.36f);
+            // Fully opaque for the first half, then fade out.
+            float alpha = t < 0.5f ? 1.0f : 1.0f - (t - 0.5f) * 2.0f;
+            Text(sx, sy, buf, WithAlpha(pop.kill ? kDamageKill : kDamageHit, alpha), pop.kill ? 0.5f : 0.42f);
         }
         ++i;
     }

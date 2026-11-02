@@ -70,6 +70,7 @@ namespace N {
     constexpr UINT64 GET_SELECTED_PED_WEAPON               = 0x0A6DB4965674D243;
     constexpr UINT64 GET_WEAPONTYPE_GROUP                  = 0xC3287EE3050FB74C;
     constexpr UINT64 GIVE_DELAYED_WEAPON_TO_PED            = 0xB282DC6EBD803C75;
+    constexpr UINT64 GET_WEAPONTYPE_MODEL                  = 0xF46CDC33180FDA94;
 
     // vehicle
     constexpr UINT64 GET_DISPLAY_NAME_FROM_VEHICLE_MODEL   = 0xB215AAC32D25D019;

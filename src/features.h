@@ -10,6 +10,8 @@ bool IsThreat(Ped p, Ped player);
 // Clear line of sight from the player (walls, vehicles and objects block it).
 bool HasLineOfSight(Ped player, Ped p);
 bool IsLawEnforcement(Ped p);
+// Name of the weapon whose world model this is (e.g. a weapon pickup), or nullptr.
+const char* WeaponLabelForModel(Hash model);
 
 // esp.cpp
 void EspTick(Ped player, const Vec3& me);
