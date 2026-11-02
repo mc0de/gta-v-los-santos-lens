@@ -110,6 +110,16 @@ void AimAt(Ped player, Ped target) {
     Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_PITCH, curPitch + (wantPitch - curPitch) * t, 1.0f);
 }
 
+// Grenades, sticky bombs, molotovs etc. are thrown in an arc, so locking the camera onto a
+// target would only ruin the throw.
+bool HoldingThrowable(Ped player) {
+    static Hash thrownGroup = 0;
+    if (!thrownGroup)
+        thrownGroup = Invoke<Hash>(N::GET_HASH_KEY, "GROUP_THROWN");
+    Hash weapon = Invoke<Hash>(N::GET_SELECTED_PED_WEAPON, player);
+    return Invoke<Hash>(N::GET_WEAPONTYPE_GROUP, weapon) == thrownGroup;
+}
+
 // Circle on screen showing the FOV limit.
 void DrawFovCircle() {
     if (g.aimFov >= 90) return; // wider than the screen
@@ -134,7 +144,7 @@ void AimTick(Ped player, const Vec3& me) {
     if (g.showFov)
         DrawFovCircle();
 
-    if (!Invoke<int>(N::IS_PLAYER_FREE_AIMING, Invoke<Player>(N::PLAYER_ID))) {
+    if (!Invoke<int>(N::IS_PLAYER_FREE_AIMING, Invoke<Player>(N::PLAYER_ID)) || HoldingThrowable(player)) {
         g_aimTarget = 0;
         return;
     }

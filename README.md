@@ -35,7 +35,7 @@ Other ESP options:
 - The current auto-aim target is always drawn, in magenta, even if its category is off.
 
 ### Auto-aim
-While you hold aim (right mouse), the camera locks onto the nearest living ped you have clear line of sight to. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight.
+While you hold aim (right mouse), the camera locks onto the nearest living ped you have clear line of sight to. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight. Auto-aim stays off while you hold a throwable (grenade, sticky bomb, molotov, etc.) so it doesn't spoil the throw arc.
 
 - **Aim at**: head or upper chest.
 - **Priority**: nearest, hostiles first, or hostiles only.
