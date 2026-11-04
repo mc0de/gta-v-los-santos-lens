@@ -146,7 +146,7 @@ void WriteStyle(const char* sec, const EspStyle& s) {
 
 // Keys from earlier versions, removed on save so the ini doesn't keep dead settings around.
 void DeleteObsoleteKeys() {
-    static const char* const kKeys[] = { "CycleTargets", "ToggleTracers" };
+    static const char* const kKeys[] = { "CycleTargets", "ToggleTracers", "SkipHour" };
     static const char* const kEsp[] = {
         "Targets", "Boxes", "Skeletons", "HealthBars", "Labels", "WeaponLabels",
         "Tracers", "IgnoreAnimals", "HostilesOnly",
@@ -197,7 +197,8 @@ void ReloadSettings() {
     ReadKey("ToggleAim", g.keys.toggleAim);
     ReadKey("AimBone", g.keys.aimBone);
     ReadKey("Teleport", g.keys.teleport);
-    ReadKey("SkipHour", g.keys.skipHour);
+    ReadKey("SkipHour", g.keys.skipTime); // old name
+    ReadKey("SkipTime", g.keys.skipTime);
 
     ReadBool("ESP", "Enabled", g.esp);
     ReadBool("ESP", "ShowDead", g.showDead);
@@ -227,6 +228,7 @@ void ReloadSettings() {
     ReadBool("Aim", "ShowFov", g.showFov);
 
     ReadBool("Misc", "DamageNumbers", g.damageNumbers);
+    ReadInt("Misc", "SkipHours", g.skipHours);
     ReadFloat("Misc", "StatusX", g.statusX);
     ReadFloat("Misc", "StatusY", g.statusY);
 
@@ -242,7 +244,7 @@ void SaveSettings() {
     WriteKey("ToggleAim", g.keys.toggleAim);
     WriteKey("AimBone", g.keys.aimBone);
     WriteKey("Teleport", g.keys.teleport);
-    WriteKey("SkipHour", g.keys.skipHour);
+    WriteKey("SkipTime", g.keys.skipTime);
 
     WriteBool("ESP", "Enabled", g.esp);
     WriteBool("ESP", "ShowDead", g.showDead);
@@ -273,6 +275,7 @@ void SaveSettings() {
     WriteBool("Aim", "ShowFov", g.showFov);
 
     WriteBool("Misc", "DamageNumbers", g.damageNumbers);
+    WriteInt("Misc", "SkipHours", g.skipHours);
     WriteFloat("Misc", "StatusX", g.statusX);
     WriteFloat("Misc", "StatusY", g.statusY);
 

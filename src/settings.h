@@ -16,7 +16,7 @@ struct Keys {
     int toggleAim        = VK_PRIOR; // Page Up
     int aimBone          = VK_NEXT;  // Page Down
     int teleport         = VK_END;
-    int skipHour         = VK_INSERT;
+    int skipTime         = VK_INSERT;
 };
 
 // What the ESP draws for one category of target.
@@ -78,6 +78,7 @@ struct Settings {
 
     // Misc
     bool damageNumbers = true;
+    int skipHours = 6;      // hours the skip-time hotkey moves the clock forward
     float statusX = 0.06f;
     float statusY = 0.002f;
 };
