@@ -94,12 +94,23 @@ void AimAt(Ped player, Ped target) {
     float heading, pitch;
     Angles(cam, AimPoint(target), heading, pitch);
 
-    float wantHeading = WrapDegrees(heading - Invoke<float>(N::GET_ENTITY_HEADING, player));
-    float wantPitch = pitch;
-
     float t = 1.0f / (std::max)(g.aimSmoothing, 1);
     float curHeading = Invoke<float>(N::GET_GAMEPLAY_CAM_RELATIVE_HEADING);
     float curPitch = Invoke<float>(N::GET_GAMEPLAY_CAM_RELATIVE_PITCH);
+
+    float wantHeading, wantPitch;
+    if (Invoke<int>(N::IS_PED_IN_ANY_VEHICLE, player, 0)) {
+        // In a vehicle the relative angles are measured against the vehicle (its heading, its
+        // pitch on slopes, and the vehicle camera's built-in downward tilt), not the ped's
+        // heading and the horizon. Work from the camera's actual world rotation instead: the
+        // remaining world-space error is added to the current relative angle.
+        Vec3 rot = Invoke<Vec3>(N::GET_GAMEPLAY_CAM_ROT, 2);
+        wantHeading = curHeading + WrapDegrees(heading - rot.z);
+        wantPitch = curPitch + (pitch - rot.x);
+    } else {
+        wantHeading = WrapDegrees(heading - Invoke<float>(N::GET_ENTITY_HEADING, player));
+        wantPitch = pitch;
+    }
 
     Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_HEADING, curHeading + WrapDegrees(wantHeading - curHeading) * t);
     Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_PITCH, curPitch + (wantPitch - curPitch) * t, 1.0f);
