@@ -60,6 +60,7 @@ void Tick() {
     FinderTick(me);
     LettersTick(me);
     DamageNumbersTick(player);
+    SpeedometerTick(player);
 
     MenuTick();
     DrawStatus();

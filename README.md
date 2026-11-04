@@ -50,6 +50,7 @@ While you hold aim (right mouse), the camera locks onto the nearest living ped y
 
 ### Misc
 - **Damage numbers**: bright yellow floating numbers when you damage a ped, red with `KILL` on a kill.
+- **Speedometer**: while you're in a vehicle, a box near the bottom-right corner shows the current speed in km/h (orange once you reach the rated top speed), the vehicle's rated top speed (`top`, the game's estimate, which includes upgrades) and the fastest you've gone in this vehicle (`best`, reset when you change vehicle). On by default; position via `SpeedoX` / `SpeedoY` in the ini.
 - **Teleport to waypoint**: set a map marker and press End (or use the menu). In a vehicle, the vehicle comes with you. If no ground is found (e.g. open sea) you're dropped from the sky with a parachute.
 - **Skip time**: press Insert (or use the menu) to move the game clock forward 6 hours. The amount (1–23 hours) is set by **Hours to skip** in the menu. A notification shows the new time.
 
@@ -77,7 +78,7 @@ A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | A
 Created next to `SPESP.asi` with defaults on first run. Edit it while the game runs and use **Reload settings file** in the menu to apply.
 
 - `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey.
-- `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position (0–1 screen fractions).
+- `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position and `SpeedoX` / `SpeedoY` for the speedometer position (0–1 screen fractions).
 - `[ESP.Hostiles]`, `[ESP.Cops]`, `[ESP.Pedestrians]`, `[ESP.Animals]`, `[ESP.Vehicles]`: the grid, with keys `Enabled`, `Box`, `Health`, `Distance`, `Labels`, `Tracers`.
 - `[Collectibles]`: `model_name=Label` lines.
 - `[Pickups]`: `model_name=Label` lines naming non-weapon pickups.
@@ -123,6 +124,6 @@ To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI p
 | `src/settings.*` | `Settings` struct and `SPESP.ini` load / save |
 | `src/esp.cpp` | Ped categories, ped / vehicle ESP, labels, threat arrows |
 | `src/aim.cpp` | Auto-aim target selection, line of sight, smoothing, aim zone |
-| `src/world.cpp` | Collectible / pickup finder, damage numbers, teleport |
+| `src/world.cpp` | Collectible / pickup finder, damage numbers, speedometer, teleport, skip time |
 | `src/menu.*` | In-game menu |
 | `src/main.cpp` | Plugin entry point, hotkeys, status line |

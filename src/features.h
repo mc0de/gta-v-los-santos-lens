@@ -23,5 +23,6 @@ void AimTick(Ped player, const Vec3& me);
 void FinderTick(const Vec3& me);
 void LettersTick(const Vec3& me);
 void DamageNumbersTick(Ped player);
+void SpeedometerTick(Ped player);
 void TeleportToWaypoint();
 void SkipTime();

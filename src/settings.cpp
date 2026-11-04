@@ -229,6 +229,9 @@ void ReloadSettings() {
 
     ReadBool("Misc", "DamageNumbers", g.damageNumbers);
     ReadInt("Misc", "SkipHours", g.skipHours);
+    ReadBool("Misc", "Speedometer", g.speedometer);
+    ReadFloat("Misc", "SpeedoX", g.speedoX);
+    ReadFloat("Misc", "SpeedoY", g.speedoY);
     ReadFloat("Misc", "StatusX", g.statusX);
     ReadFloat("Misc", "StatusY", g.statusY);
 
@@ -276,6 +279,9 @@ void SaveSettings() {
 
     WriteBool("Misc", "DamageNumbers", g.damageNumbers);
     WriteInt("Misc", "SkipHours", g.skipHours);
+    WriteBool("Misc", "Speedometer", g.speedometer);
+    WriteFloat("Misc", "SpeedoX", g.speedoX);
+    WriteFloat("Misc", "SpeedoY", g.speedoY);
     WriteFloat("Misc", "StatusX", g.statusX);
     WriteFloat("Misc", "StatusY", g.statusY);
 

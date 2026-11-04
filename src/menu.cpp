@@ -102,6 +102,7 @@ std::vector<Item>& Items() {
 
         Header("Misc"),
         Toggle("Damage numbers", &g.damageNumbers),
+        Toggle("Speedometer", &g.speedometer),
         Action("Teleport to waypoint", DoTeleport),
         Action("Skip time", SkipTime),
         IntRange("Hours to skip", &g.skipHours, 1, 23, 1, "%d h"),

@@ -50,6 +50,7 @@ namespace N {
     constexpr UINT64 GET_ENTITY_HEADING                    = 0xE83D4F9BA2A38914;
     constexpr UINT64 GET_ENTITY_HEALTH                     = 0xEEF059FAD016D209;
     constexpr UINT64 GET_ENTITY_MAX_HEALTH                 = 0x15D757606D170C3C;
+    constexpr UINT64 GET_ENTITY_SPEED                      = 0xD5037BA82E12416F; // m/s
     constexpr UINT64 IS_ENTITY_DEAD                        = 0x5F9532F3B5CC2551;
     constexpr UINT64 HAS_ENTITY_CLEAR_LOS_TO_ENTITY        = 0xFCDFF7B72D23A1AC;
     constexpr UINT64 HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY     = 0xC86D67D52A707CF8;
@@ -77,6 +78,7 @@ namespace N {
     constexpr UINT64 GET_PED_IN_VEHICLE_SEAT               = 0xBB40DD2270B65366;
     constexpr UINT64 GET_VEHICLE_DOOR_LOCK_STATUS          = 0x25BC98A59C2EA962;
     constexpr UINT64 GET_VEHICLE_CLASS                     = 0x29439776AAA00A62;
+    constexpr UINT64 GET_VEHICLE_ESTIMATED_MAX_SPEED       = 0x53AF99BAA671CA47; // SDK: _GET_VEHICLE_SPEED; m/s, includes upgrades
 
     // camera
     constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;

@@ -79,6 +79,9 @@ struct Settings {
     // Misc
     bool damageNumbers = true;
     int skipHours = 6;      // hours the skip-time hotkey moves the clock forward
+    bool speedometer = true; // km/h readout while in a vehicle
+    float speedoX = 0.92f;
+    float speedoY = 0.86f;
     float statusX = 0.06f;
     float statusY = 0.002f;
 };

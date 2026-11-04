@@ -286,3 +286,28 @@ void SkipTime() {
                   Invoke<int>(N::GET_CLOCK_HOURS), Invoke<int>(N::GET_CLOCK_MINUTES));
     Notify(msg);
 }
+
+void SpeedometerTick(Ped player) {
+    // Best speed reached, kept per vehicle and reset when you get into a different one.
+    static Vehicle s_vehicle = 0;
+    static float s_best = 0.0f;
+
+    if (!g.speedometer || !Invoke<BOOL>(N::IS_PED_IN_ANY_VEHICLE, player, 0)) return;
+    Vehicle veh = Invoke<Vehicle>(N::GET_VEHICLE_PED_IS_USING, player);
+    if (!veh || !Invoke<BOOL>(N::DOES_ENTITY_EXIST, veh)) return;
+
+    constexpr float kKmh = 3.6f; // m/s -> km/h
+    float speed = Invoke<float>(N::GET_ENTITY_SPEED, veh) * kKmh;
+    float top = Invoke<float>(N::GET_VEHICLE_ESTIMATED_MAX_SPEED, veh) * kKmh;
+    if (veh != s_vehicle) { s_vehicle = veh; s_best = 0.0f; }
+    if (speed > s_best) s_best = speed;
+
+    const float x = g.speedoX, y = g.speedoY;
+    Rect(x, y + 0.03f, 0.1f, 0.075f, { 0, 0, 0, 120 });
+
+    char buf[48];
+    std::snprintf(buf, sizeof buf, "%.0f km/h", speed);
+    Text(x, y, buf, top > 0.0f && speed >= top ? kOrange : kWhite, 0.55f);
+    std::snprintf(buf, sizeof buf, "top %.0f  |  best %.0f", top, s_best);
+    Text(x, y + 0.04f, buf, kGrey, 0.26f);
+}
