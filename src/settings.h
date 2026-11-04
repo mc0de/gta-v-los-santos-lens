@@ -16,6 +16,7 @@ struct Keys {
     int toggleAim        = VK_PRIOR; // Page Up
     int aimBone          = VK_NEXT;  // Page Down
     int teleport         = VK_END;
+    int skipHour         = VK_INSERT;
 };
 
 // What the ESP draws for one category of target.

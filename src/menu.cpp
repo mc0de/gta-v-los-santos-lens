@@ -103,6 +103,7 @@ std::vector<Item>& Items() {
         Header("Misc"),
         Toggle("Damage numbers", &g.damageNumbers),
         Action("Teleport to waypoint", DoTeleport),
+        Action("Skip one hour", SkipHour),
         Action("Reload settings file", DoReload),
     };
     return items;

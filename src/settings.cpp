@@ -197,6 +197,7 @@ void ReloadSettings() {
     ReadKey("ToggleAim", g.keys.toggleAim);
     ReadKey("AimBone", g.keys.aimBone);
     ReadKey("Teleport", g.keys.teleport);
+    ReadKey("SkipHour", g.keys.skipHour);
 
     ReadBool("ESP", "Enabled", g.esp);
     ReadBool("ESP", "ShowDead", g.showDead);
@@ -241,6 +242,7 @@ void SaveSettings() {
     WriteKey("ToggleAim", g.keys.toggleAim);
     WriteKey("AimBone", g.keys.aimBone);
     WriteKey("Teleport", g.keys.teleport);
+    WriteKey("SkipHour", g.keys.skipHour);
 
     WriteBool("ESP", "Enabled", g.esp);
     WriteBool("ESP", "ShowDead", g.showDead);

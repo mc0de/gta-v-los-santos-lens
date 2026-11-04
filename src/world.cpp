@@ -276,3 +276,12 @@ void TeleportToWaypoint() {
     Invoke(N::SET_ENTITY_COORDS_NO_OFFSET, e, dest.x, dest.y, 1000.0f, 0, 0, 1);
     Invoke(N::GIVE_DELAYED_WEAPON_TO_PED, player, Invoke<Hash>(N::GET_HASH_KEY, "GADGET_PARACHUTE"), 1, 0);
 }
+
+void SkipHour() {
+    // ADD_TO_CLOCK_TIME rolls over midnight and advances the day itself.
+    Invoke(N::ADD_TO_CLOCK_TIME, 1, 0, 0);
+    char msg[32];
+    std::snprintf(msg, sizeof msg, "Time: %02d:%02d",
+                  Invoke<int>(N::GET_CLOCK_HOURS), Invoke<int>(N::GET_CLOCK_MINUTES));
+    Notify(msg);
+}

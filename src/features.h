@@ -24,3 +24,4 @@ void FinderTick(const Vec3& me);
 void LettersTick(const Vec3& me);
 void DamageNumbersTick(Ped player);
 void TeleportToWaypoint();
+void SkipHour();

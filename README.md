@@ -51,6 +51,7 @@ While you hold aim (right mouse), the camera locks onto the nearest living ped y
 ### Misc
 - **Damage numbers**: bright yellow floating numbers when you damage a ped, red with `KILL` on a kill.
 - **Teleport to waypoint**: set a map marker and press End (or use the menu). In a vehicle, the vehicle comes with you. If no ground is found (e.g. open sea) you're dropped from the sky with a parachute.
+- **Skip one hour**: press Insert (or use the menu) to move the game clock forward one hour. A notification shows the new time.
 
 ## Menu and hotkeys
 
@@ -65,6 +66,7 @@ Press **Delete** to open the menu. Arrow keys move / change values (in the ESP g
 | Page Up | Toggle auto-aim |
 | Page Down | Switch aim point: head / body |
 | End | Teleport to waypoint |
+| Insert | Skip game time forward one hour |
 
 F5–F8 are left alone because the game uses them for character switching.
 

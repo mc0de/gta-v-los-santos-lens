@@ -93,6 +93,9 @@ namespace N {
     constexpr UINT64 GET_GAME_TIMER                        = 0x9CD27B0045628463;
     constexpr UINT64 IS_PAUSE_MENU_ACTIVE                  = 0xB0034A223497FFCB;
     constexpr UINT64 DISABLE_CONTROL_ACTION                = 0xFE99B66D079CF6BC;
+    constexpr UINT64 ADD_TO_CLOCK_TIME                     = 0xD716F30D8C8980E2;
+    constexpr UINT64 GET_CLOCK_HOURS                       = 0x25223CA6B4D20B7F;
+    constexpr UINT64 GET_CLOCK_MINUTES                     = 0x13D2B8ADD79640F2;
 
     // blips
     constexpr UINT64 GET_BLIP_INFO_ID_ITERATOR             = 0x186E5D252FA50E7D;
