@@ -49,7 +49,7 @@ const KeyName kKeyNames[] = {
 };
 
 const char* const kBoneNames[]     = { "head", "body" };
-const char* const kPriorityNames[] = { "nearest", "hostiles_first", "hostiles_only" };
+const char* const kPickNames[]     = { "crosshair", "nearest" };
 
 std::string KeyToString(int vk) {
     for (const auto& k : kKeyNames)
@@ -152,7 +152,27 @@ void DeleteObsoleteKeys() {
         "Tracers", "IgnoreAnimals", "HostilesOnly",
     };
     for (const char* k : kKeys) WritePrivateProfileStringA("Keys", k, nullptr, g_path.c_str());
+    static const char* const kAim[] = { "Priority", "IgnoreCops", "IgnoreAnimals", "ShowFov" };
     for (const char* k : kEsp)  WritePrivateProfileStringA("ESP", k, nullptr, g_path.c_str());
+    for (const char* k : kAim)  WritePrivateProfileStringA("Aim", k, nullptr, g_path.c_str());
+}
+
+// Ini files from before the Pick / Target* settings: carry over Priority, IgnoreCops and
+// IgnoreAnimals, and keep picking by distance as those versions did.
+void MigrateOldAimKeys() {
+    std::string priority = Read("Aim", "Priority");
+    if (priority.empty() || !Read("Aim", "Pick").empty()) return;
+
+    bool ignoreCops = false, ignoreAnimals = true; // old defaults
+    ReadBool("Aim", "IgnoreCops", ignoreCops);
+    ReadBool("Aim", "IgnoreAnimals", ignoreAnimals);
+    bool hostilesOnly = _stricmp(priority.c_str(), "hostiles_only") == 0;
+
+    g.aimPick = AimPick::Nearest;
+    g.aimPedestrians = !hostilesOnly;
+    g.aimCops = !hostilesOnly && !ignoreCops;
+    g.aimAnimals = !hostilesOnly && !ignoreAnimals;
+    g.aimRange = g.pedRange; // aim used the ESP range before it had its own
 }
 
 // Reads a "model=Label" section, falling back to the defaults if it's missing or empty.
@@ -220,12 +240,14 @@ void ReloadSettings() {
 
     ReadBool("Aim", "Enabled", g.aim);
     ReadEnum("Aim", "Bone", g.aimBone, kBoneNames);
-    ReadEnum("Aim", "Priority", g.aimPriority, kPriorityNames);
-    ReadBool("Aim", "IgnoreCops", g.aimIgnoreCops);
-    ReadBool("Aim", "IgnoreAnimals", g.aimIgnoreAnimals);
-    ReadInt("Aim", "Smoothing", g.aimSmoothing);
+    MigrateOldAimKeys();
+    ReadEnum("Aim", "Pick", g.aimPick, kPickNames);
+    ReadBool("Aim", "TargetCops", g.aimCops);
+    ReadBool("Aim", "TargetPedestrians", g.aimPedestrians);
+    ReadBool("Aim", "TargetAnimals", g.aimAnimals);
+    ReadFloat("Aim", "Range", g.aimRange);
     ReadInt("Aim", "Fov", g.aimFov);
-    ReadBool("Aim", "ShowFov", g.showFov);
+    ReadInt("Aim", "Smoothing", g.aimSmoothing);
 
     ReadBool("Misc", "DamageNumbers", g.damageNumbers);
     ReadInt("Misc", "SkipHours", g.skipHours);
@@ -270,12 +292,13 @@ void SaveSettings() {
 
     WriteBool("Aim", "Enabled", g.aim);
     WriteEnum("Aim", "Bone", g.aimBone, kBoneNames);
-    WriteEnum("Aim", "Priority", g.aimPriority, kPriorityNames);
-    WriteBool("Aim", "IgnoreCops", g.aimIgnoreCops);
-    WriteBool("Aim", "IgnoreAnimals", g.aimIgnoreAnimals);
-    WriteInt("Aim", "Smoothing", g.aimSmoothing);
+    WriteEnum("Aim", "Pick", g.aimPick, kPickNames);
+    WriteBool("Aim", "TargetCops", g.aimCops);
+    WriteBool("Aim", "TargetPedestrians", g.aimPedestrians);
+    WriteBool("Aim", "TargetAnimals", g.aimAnimals);
+    WriteFloat("Aim", "Range", g.aimRange);
     WriteInt("Aim", "Fov", g.aimFov);
-    WriteBool("Aim", "ShowFov", g.showFov);
+    WriteInt("Aim", "Smoothing", g.aimSmoothing);
 
     WriteBool("Misc", "DamageNumbers", g.damageNumbers);
     WriteInt("Misc", "SkipHours", g.skipHours);

@@ -35,13 +35,21 @@ Other ESP options:
 - The current auto-aim target is always drawn, in magenta, even if its category is off.
 
 ### Auto-aim
-While you hold aim (right mouse), the camera locks onto the nearest living ped you have clear line of sight to. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight. Auto-aim stays off while you hold a throwable (grenade, sticky bomb, molotov, etc.) so it doesn't spoil the throw arc.
+While you hold aim (right mouse), the camera locks onto a living ped you have clear line of sight to. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight; to switch, let go of aim and aim again. Auto-aim stays off while you hold a throwable (grenade, sticky bomb, molotov, etc.) so it doesn't spoil the throw arc.
 
+**Who is targeted.** Hostiles (anyone fighting you, including cops chasing you and animals attacking you) are always targets. The toggles add the peaceful ones:
+- **Target cops**: cops, SWAT and army that aren't after you. Off by default.
+- **Target pedestrians**: off by default.
+- **Target animals**: off by default.
+
+**How the target is picked.**
+- **Pick**: **Crosshair** (default) locks onto the target closest to where you're aiming, so you choose by pointing at it. **Nearest** locks onto the closest by distance, preferring hostiles over peaceful targets; a peaceful lock switches to a hostile as soon as one is in sight.
+- **Range**: only peds within this distance are targeted (250 m by default, separate from the ESP range).
+- **Aim zone**: only targets within N degrees of the crosshair are considered ("any" = no limit).
+
+Other options:
 - **Aim at**: head or upper chest.
-- **Priority**: nearest, hostiles first, or hostiles only.
-- **Ignore cops / animals**.
 - **Smoothing**: 1 snaps instantly; higher values glide the camera onto the target.
-- **Aim zone**: only targets within N degrees of the crosshair are considered ("any" = no limit). Optionally drawn as a circle.
 
 ### Finder
 - **Collectibles**: orange markers and a tall beam on collectible props (spaceship parts, peyote plants, nuclear waste). The model list lives in the `[Collectibles]` section of `SPESP.ini`. The default model names are best-known values and haven't all been verified; fix or add entries there. Objects only exist near the player, so this finds items in your surroundings, not across the whole map.

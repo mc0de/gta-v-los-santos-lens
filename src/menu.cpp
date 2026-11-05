@@ -62,7 +62,7 @@ Item Choice(const char* label, E* v, const char* const (&names)[N]) {
 }
 
 const char* const kBoneLabels[]     = { "Head", "Body" };
-const char* const kPriorityLabels[] = { "Nearest", "Hostiles first", "Hostiles only" };
+const char* const kPickLabels[]     = { "Crosshair", "Nearest" };
 
 void DoTeleport();
 void DoReload();
@@ -93,12 +93,13 @@ std::vector<Item>& Items() {
         Header("Auto-aim"),
         Toggle("Enabled", &g.aim),
         Choice("Aim at", &g.aimBone, kBoneLabels),
-        Choice("Priority", &g.aimPriority, kPriorityLabels),
-        Toggle("Ignore cops", &g.aimIgnoreCops),
-        Toggle("Ignore animals", &g.aimIgnoreAnimals),
-        IntRange("Smoothing", &g.aimSmoothing, 1, 20, 1, "%d"),
+        Choice("Pick", &g.aimPick, kPickLabels),
+        Toggle("Target cops", &g.aimCops),
+        Toggle("Target pedestrians", &g.aimPedestrians),
+        Toggle("Target animals", &g.aimAnimals),
+        FloatRange("Range", &g.aimRange, 25, 1000, 25, "%.0f m"),
         IntRange("Aim zone", &g.aimFov, 5, 180, 5, "%d deg", "any"),
-        Toggle("Show aim zone", &g.showFov),
+        IntRange("Smoothing", &g.aimSmoothing, 1, 20, 1, "%d"),
 
         Header("Misc"),
         Toggle("Damage numbers", &g.damageNumbers),

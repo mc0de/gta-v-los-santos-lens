@@ -6,7 +6,7 @@
 #include <vector>
 
 enum class AimBone { Head, Body };
-enum class AimPriority { Nearest, HostilesFirst, HostilesOnly };
+enum class AimPick { Crosshair, Nearest };
 
 struct Keys {
     int menu             = VK_DELETE; // Home opens the Rockstar launcher overlay
@@ -69,12 +69,15 @@ struct Settings {
     // Aim
     bool aim = false;
     AimBone aimBone = AimBone::Head;
-    AimPriority aimPriority = AimPriority::Nearest;
-    bool aimIgnoreCops = false;
-    bool aimIgnoreAnimals = true;
-    int aimSmoothing = 1;   // 1 = snap, higher = slower glide
+    AimPick aimPick = AimPick::Crosshair;
+    // Hostiles (anyone fighting you, cops and animals included) are always targets;
+    // these add the peaceful members of each category.
+    bool aimCops = false;
+    bool aimPedestrians = false;
+    bool aimAnimals = false;
+    float aimRange = 250.0f;
     int aimFov = 180;       // max degrees from the crosshair; 180 = anywhere
-    bool showFov = false;
+    int aimSmoothing = 1;   // 1 = snap, higher = slower glide
 
     // Misc
     bool damageNumbers = true;
