@@ -372,10 +372,12 @@ void SpeedometerTick(Ped player) {
     // and the gaps between rows look equal on screen. Sizes are screen-height fractions;
     // horizontal ones are divided by the aspect ratio to match in pixels.
     constexpr float kLabelScale = 0.23f, kValueScale = 0.25f, kSpeedScale = 0.42f;
-    // Measured in-game for font 0 (Chalet): where capitals start below the y passed to Text, and
-    // how tall they are, per unit of text scale. Everything uses this one font so the measurements
-    // hold for every row.
-    constexpr float kCapTop = 0.029f, kCapH = 0.033f;
+    // Where font 0's capitals start and end below the y passed to Text, as screen-height
+    // fractions: a constant plus a part proportional to the scale. Fitted from in-game
+    // screenshots at scales 0.23 and 0.42 (2560x1440).
+    auto capTop    = [](float scale) { return 0.0009f + 0.01453f * scale; };
+    auto capBottom = [](float scale) { return 0.00219f + 0.05116f * scale; };
+    auto capH      = [&](float scale) { return capBottom(scale) - capTop(scale); };
     constexpr float kPadY = 0.009f;   // panel edge to text, all four sides
     constexpr float kGapY = 0.009f;   // between rows, capital to capital
     constexpr float kMinW = 0.13f;
@@ -398,8 +400,8 @@ void SpeedometerTick(Ped player) {
     const float aspect = AspectRatio();
     const float padX = kPadY / aspect, gapX = 2.0f * kPadY / aspect, unitGap = 0.5f * kPadY / aspect;
     // Small rows are as tall as the larger of their two scales' capitals.
-    const float rowCap = kCapH * kValueScale;
-    const float speedCap = kCapH * kSpeedScale;
+    const float rowCap = (std::max)(capH(kLabelScale), capH(kValueScale));
+    const float speedCap = capH(kSpeedScale);
 
     auto rowW = [&](const char* l, float ls, const char* r, float rs) {
         return (*l ? TextWidth(l, ls) : 0.0f) + (*r ? TextWidth(r, rs) : 0.0f) + gapX;
@@ -415,9 +417,9 @@ void SpeedometerTick(Ped player) {
     const float right = g.speedoX, bottom = g.speedoY, left = right - w, topY = bottom - h;
     Rect(left + w * 0.5f, topY + h * 0.5f, w, h, kPanel);
 
-    // Draws text so its capitals sit on `base` (the bottom of the capitals).
+    // Draws text with the bottom of its capitals on `base`, so every size shares one baseline.
     auto draw = [&](float x, float base, const char* t, Color c, float scale) {
-        Text(x, base - (kCapTop + kCapH) * scale, t, c, scale, false, 0, false);
+        Text(x, base - capBottom(scale), t, c, scale, false, 0, false);
     };
     const float lx = left + padX, rx = right - padX;
     auto row = [&](float base, const char* l, Color lc, const char* r, Color rc, float rs) {
