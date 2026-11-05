@@ -366,17 +366,16 @@ void SpeedometerTick(Ped player) {
     //   BENEFACTOR                 Panto     make (cyan) / model
     //   Mercedes-Benz           Compacts     real-life brand (green) / class (yellow)
     //   TOP 180                 BEST 150     stats, light grey
-    //   SPEED                  123 KM/H      big condensed number, orange at top speed
+    //   SPEED                  123 KM/H      big number, orange at top speed
     //
     // Laid out by capital-letter height rather than text boxes, so the padding around the panel
     // and the gaps between rows look equal on screen. Sizes are screen-height fractions;
     // horizontal ones are divided by the aspect ratio to match in pixels.
-    constexpr float kLabelScale = 0.23f, kValueScale = 0.25f, kSpeedScale = 0.45f;
-    constexpr int kFontCondensed = 4;
-    // Measured in-game: where capitals start below the y passed to Text, and how tall they are,
-    // per unit of text scale.
-    constexpr float kCapTop0 = 0.029f, kCapH0 = 0.033f; // font 0 (Chalet)
-    constexpr float kCapTop4 = 0.035f, kCapH4 = 0.031f; // font 4 (condensed)
+    constexpr float kLabelScale = 0.23f, kValueScale = 0.25f, kSpeedScale = 0.42f;
+    // Measured in-game for font 0 (Chalet): where capitals start below the y passed to Text, and
+    // how tall they are, per unit of text scale. Everything uses this one font so the measurements
+    // hold for every row.
+    constexpr float kCapTop = 0.029f, kCapH = 0.033f;
     constexpr float kPadY = 0.009f;   // panel edge to text, all four sides
     constexpr float kGapY = 0.009f;   // between rows, capital to capital
     constexpr float kMinW = 0.13f;
@@ -399,14 +398,14 @@ void SpeedometerTick(Ped player) {
     const float aspect = AspectRatio();
     const float padX = kPadY / aspect, gapX = 2.0f * kPadY / aspect, unitGap = 0.5f * kPadY / aspect;
     // Small rows are as tall as the larger of their two scales' capitals.
-    const float rowCap = kCapH0 * kValueScale;
-    const float speedCap = kCapH4 * kSpeedScale;
+    const float rowCap = kCapH * kValueScale;
+    const float speedCap = kCapH * kSpeedScale;
 
     auto rowW = [&](const char* l, float ls, const char* r, float rs) {
         return (*l ? TextWidth(l, ls) : 0.0f) + (*r ? TextWidth(r, rs) : 0.0f) + gapX;
     };
     const float speedW = TextWidth("SPEED", kLabelScale) + gapX +
-                         TextWidth(speedBuf, kSpeedScale, kFontCondensed) + unitGap + TextWidth(unit, kLabelScale);
+                         TextWidth(speedBuf, kSpeedScale) + unitGap + TextWidth(unit, kLabelScale);
     const float w = (std::max)({ kMinW, rowW(make, kLabelScale, s_model, kValueScale) + 2 * padX,
                                  rowW(real, kLabelScale, s_class, kValueScale) + 2 * padX,
                                  rowW(topBuf, kLabelScale, bestBuf, kLabelScale) + 2 * padX,
@@ -417,15 +416,13 @@ void SpeedometerTick(Ped player) {
     Rect(left + w * 0.5f, topY + h * 0.5f, w, h, kPanel);
 
     // Draws text so its capitals sit on `base` (the bottom of the capitals).
-    auto draw = [&](float x, float base, const char* t, Color c, float scale, int font) {
-        float capTop = font == kFontCondensed ? kCapTop4 : kCapTop0;
-        float capH = font == kFontCondensed ? kCapH4 : kCapH0;
-        Text(x, base - (capTop + capH) * scale, t, c, scale, false, font, false);
+    auto draw = [&](float x, float base, const char* t, Color c, float scale) {
+        Text(x, base - (kCapTop + kCapH) * scale, t, c, scale, false, 0, false);
     };
     const float lx = left + padX, rx = right - padX;
     auto row = [&](float base, const char* l, Color lc, const char* r, Color rc, float rs) {
-        if (*l) draw(lx, base, l, lc, kLabelScale, 0);
-        if (*r) draw(rx - TextWidth(r, rs), base, r, rc, rs, 0);
+        if (*l) draw(lx, base, l, lc, kLabelScale);
+        if (*r) draw(rx - TextWidth(r, rs), base, r, rc, rs);
     };
 
     float base = topY + kPadY + rowCap;
@@ -441,8 +438,8 @@ void SpeedometerTick(Ped player) {
     base += kGapY + speedCap;
     Color sc = top > 0.0f && speed >= top ? kOrange : kWhite;
     float unitX = rx - TextWidth(unit, kLabelScale);
-    float numX = unitX - unitGap - TextWidth(speedBuf, kSpeedScale, kFontCondensed);
-    draw(lx, base, "SPEED", kLabel, kLabelScale, 0);
-    draw(numX, base, speedBuf, sc, kSpeedScale, kFontCondensed);
-    draw(unitX, base, unit, kLabel, kLabelScale, 0);
+    float numX = unitX - unitGap - TextWidth(speedBuf, kSpeedScale);
+    draw(lx, base, "SPEED", kLabel, kLabelScale);
+    draw(numX, base, speedBuf, sc, kSpeedScale);
+    draw(unitX, base, unit, kLabel, kLabelScale);
 }
