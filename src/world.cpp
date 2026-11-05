@@ -123,9 +123,14 @@ void DrawScrap(const Vec3& base, float d) {
 // ---- Damage numbers ----
 
 // Each number floats up from the ped's head and fades out.
-struct Popup { Vec3 pos; int amount; bool kill; int start; };
+struct Popup { Ped ped; Vec3 pos; int amount; bool kill; int start; };
 
 constexpr int kPopupLifetimeMs = 1000;
+// Hits on one ped this close together (fire, bleeding, automatic fire) add up into one number
+// instead of starting a new one every frame.
+constexpr int kPopupMergeMs = 200;
+// Safety cap on numbers drawn at once (oldest dropped), e.g. when an explosion hits a crowd.
+constexpr size_t kMaxPopups = 40;
 // A hit counts as the player's only this long after they last shot, fought or drove.
 constexpr int kAttackWindowMs = 3000;
 // Fully saturated so the numbers stand out against bright scenery.
@@ -135,6 +140,7 @@ std::vector<Popup> g_popups;
 
 struct PedHp { int hp; bool dead; };
 std::unordered_map<Ped, PedHp> g_lastHp;
+std::unordered_map<Ped, PedHp> g_hpNow; // kept between frames so its buckets are reused
 int g_lastAttack = -100000;
 
 } // namespace
@@ -194,6 +200,7 @@ void LettersTick(const Vec3& me) {
 void DamageNumbersTick(Ped player) {
     if (!g.damageNumbers) {
         g_lastHp.clear();
+        g_hpNow.clear();
         g_popups.clear();
         return;
     }
@@ -210,14 +217,13 @@ void DamageNumbersTick(Ped player) {
     // that count the player's kills through them. HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY stays true
     // once set, so a later hit only counts while the player is attacking; a kill counts when the
     // game names the player (or their vehicle) as the killer.
-    std::unordered_map<Ped, PedHp> hpNow;
-    hpNow.reserve(g_pedCount);
+    g_hpNow.clear();
     for (int i = 0; i < g_pedCount; ++i) {
         Ped p = g_peds[i];
         if (p == player) continue;
         PedHp cur{ Invoke<int>(N::GET_ENTITY_HEALTH, p) + Invoke<int>(N::GET_PED_ARMOUR, p),
                    Invoke<int>(N::IS_ENTITY_DEAD, p, 0) != 0 };
-        hpNow[p] = cur;
+        g_hpNow[p] = cur;
 
         auto it = g_lastHp.find(p);
         if (it == g_lastHp.end() || it->second.dead) continue; // unseen, or already dead
@@ -231,14 +237,25 @@ void DamageNumbersTick(Ped player) {
         } else if (lost <= 0 || !attacking || !Invoke<int>(N::HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY, p, player, 1)) {
             continue;
         }
-        Vec3 head = Invoke<Vec3>(N::GET_PED_BONE_COORDS, p, 31086, 0.0f, 0.0f, 0.0f);
-        g_popups.push_back({ head, lost > 0 ? lost : 0, kill, now });
+        if (!kill) {
+            auto prev = std::find_if(g_popups.rbegin(), g_popups.rend(),
+                                     [p](const Popup& q) { return q.ped == p; });
+            if (prev != g_popups.rend() && !prev->kill && now >= prev->start &&
+                now - prev->start < kPopupMergeMs) {
+                prev->amount += lost;
+                continue;
+            }
+        }
+        Vec3 head = Invoke<Vec3>(N::GET_PED_BONE_COORDS, p, kBoneHead, 0.0f, 0.0f, 0.0f);
+        g_popups.push_back({ p, head, lost > 0 ? lost : 0, kill, now });
     }
-    g_lastHp.swap(hpNow);
+    g_lastHp.swap(g_hpNow);
 
     g_popups.erase(std::remove_if(g_popups.begin(), g_popups.end(), [now](const Popup& p) {
         return now < p.start || now - p.start > kPopupLifetimeMs;
     }), g_popups.end());
+    if (g_popups.size() > kMaxPopups)
+        g_popups.erase(g_popups.begin(), g_popups.end() - kMaxPopups);
 
     // Numbers float upward; fully opaque for the first half, then fade out.
     char buf[32];

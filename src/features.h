@@ -3,6 +3,8 @@
 #include "ui.h"
 #include "settings.h"
 
+constexpr int kBoneHead = 31086; // SKEL_Head
+
 // Ped currently locked by auto-aim (0 = none); ESP highlights it.
 extern Ped g_aimTarget;
 

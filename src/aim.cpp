@@ -6,7 +6,6 @@ Ped g_aimTarget = 0;
 
 namespace {
 
-constexpr int kBoneHead = 31086;      // SKEL_Head
 constexpr int kBoneBody = 24818;      // SKEL_Spine3 (upper chest)
 constexpr float kRadToDeg = 57.2957795f;
 constexpr float kDegToRad = 0.0174532925f;

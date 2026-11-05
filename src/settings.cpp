@@ -224,6 +224,8 @@ void DeleteObsoleteKeys() {
     static const char* const kAim[] = { "Priority", "IgnoreCops", "IgnoreAnimals", "ShowFov" };
     for (const char* k : kEsp)  WritePrivateProfileStringA("ESP", k, nullptr, g_path.c_str());
     for (const char* k : kAim)  WritePrivateProfileStringA("Aim", k, nullptr, g_path.c_str());
+    static const char* const kMisc[] = { "DamageX", "DamageY" };
+    for (const char* k : kMisc) WritePrivateProfileStringA("Misc", k, nullptr, g_path.c_str());
 }
 
 // Ini files from before the Pick / Target* settings: carry over Priority, IgnoreCops and
