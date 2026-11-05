@@ -1,7 +1,10 @@
 #include "features.h"
+#include "vehicle_makes.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <iterator>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -287,6 +290,24 @@ void SkipTime() {
     Notify(msg);
 }
 
+namespace {
+
+// GET_VEHICLE_CLASS ids 0-22.
+const char* const kVehicleClasses[] = {
+    "Compact", "Sedan", "SUV", "Coupe", "Muscle", "Sports Classic", "Sports", "Super", "Motorcycle",
+    "Off-road", "Industrial", "Utility", "Van", "Cycle", "Boat", "Helicopter", "Plane", "Service",
+    "Emergency", "Military", "Commercial", "Train", "Open Wheel",
+};
+
+const VehicleMake* FindVehicleMake(Hash model) {
+    auto end = std::end(kVehicleMakes);
+    auto it = std::lower_bound(std::begin(kVehicleMakes), end, static_cast<uint32_t>(model),
+                               [](const VehicleMake& m, uint32_t h) { return m.model < h; });
+    return it != end && it->model == static_cast<uint32_t>(model) ? it : nullptr;
+}
+
+} // namespace
+
 void SpeedometerTick(Ped player) {
     // Best speed reached, kept per vehicle and reset when you get into a different one.
     static Vehicle s_vehicle = 0;
@@ -299,15 +320,59 @@ void SpeedometerTick(Ped player) {
     constexpr float kKmh = 3.6f; // m/s -> km/h
     float speed = Invoke<float>(N::GET_ENTITY_SPEED, veh) * kKmh;
     float top = Invoke<float>(N::GET_VEHICLE_ESTIMATED_MAX_SPEED, veh) * kKmh;
-    if (veh != s_vehicle) { s_vehicle = veh; s_best = 0.0f; }
+    // Name parts only change with the vehicle, so they're looked up once per vehicle.
+    static const VehicleMake* s_make = nullptr;
+    static char s_model[64] = "";
+    static const char* s_class = "";
+    if (veh != s_vehicle) {
+        s_vehicle = veh;
+        s_best = 0.0f;
+        Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, veh);
+        s_make = FindVehicleMake(model);
+        const char* code = Invoke<const char*>(N::GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, model);
+        const char* name = code ? Invoke<const char*>(N::GET_FILENAME_FOR_AUDIO_CONVERSATION, code) : nullptr;
+        if (!name || !*name || !std::strcmp(name, "NULL")) name = code ? code : "";
+        std::snprintf(s_model, sizeof s_model, "%s", name);
+        int cls = Invoke<int>(N::GET_VEHICLE_CLASS, veh);
+        s_class = cls >= 0 && cls < static_cast<int>(std::size(kVehicleClasses)) ? kVehicleClasses[cls] : "";
+    }
     if (speed > s_best) s_best = speed;
 
+    // Rows top to bottom: make (cyan) + model (white) + class (yellow), real-life brand, speed,
+    // top | best. SpeedoX/Y is the centre top of the speed row; the name rows sit above it.
+    constexpr float kNameScale = 0.24f, kRealScale = 0.21f, kSpeedScale = 0.38f, kStatScale = 0.21f;
+    constexpr float kRow = 0.017f, kGap = 0.004f, kPadX = 0.006f, kPadY = 0.003f;
     const float x = g.speedoX, y = g.speedoY;
-    Rect(x, y + 0.03f, 0.1f, 0.075f, { 0, 0, 0, 120 });
 
-    char buf[48];
-    std::snprintf(buf, sizeof buf, "%.0f km/h", speed);
-    Text(x, y, buf, top > 0.0f && speed >= top ? kOrange : kWhite, 0.55f);
-    std::snprintf(buf, sizeof buf, "top %.0f  |  best %.0f", top, s_best);
-    Text(x, y + 0.04f, buf, kGrey, 0.26f);
+    char real[48] = "", stats[48], speedBuf[24];
+    if (s_make && *s_make->real) std::snprintf(real, sizeof real, "real: %s", s_make->real);
+    std::snprintf(speedBuf, sizeof speedBuf, "%.0f km/h", speed);
+    std::snprintf(stats, sizeof stats, "top %.0f  |  best %.0f", top, s_best);
+
+    struct Part { const char* s; Color c; float w; };
+    Part name[3] = { { s_make ? s_make->make : "", kCyan, 0 }, { s_model, kWhite, 0 }, { s_class, kYellow, 0 } };
+    float nameW = 0.0f;
+    int parts = 0;
+    for (Part& p : name) {
+        if (!*p.s) continue;
+        p.w = TextWidth(p.s, kNameScale);
+        nameW += (parts++ ? kGap : 0.0f) + p.w;
+    }
+
+    const float realY = y - (*real ? kRow : 0.0f);
+    const float nameY = realY - kRow;
+    float boxW = std::max({ nameW, *real ? TextWidth(real, kRealScale) : 0.0f, TextWidth(speedBuf, kSpeedScale),
+                            TextWidth(stats, kStatScale) }) + 2 * kPadX;
+    const float top0 = nameY - kPadY, bottom = y + 0.044f + kPadY;
+    Rect(x, (top0 + bottom) / 2, boxW, bottom - top0, { 0, 0, 0, 120 });
+
+    float px = x - nameW / 2;
+    for (const Part& p : name) {
+        if (!*p.s) continue;
+        Text(px, nameY, p.s, p.c, kNameScale, false);
+        px += p.w + kGap;
+    }
+    if (*real) Text(x, realY, real, kGreen, kRealScale);
+    Text(x, y, speedBuf, top > 0.0f && speed >= top ? kOrange : kWhite, kSpeedScale);
+    Text(x, y + 0.027f, stats, kGrey, kStatScale);
 }
