@@ -6,8 +6,9 @@
 namespace {
 
 // StyleRow is one row of the ESP grid (a target category with a checkbox per column);
-// GridHeader is the non-selectable column-title row above it.
-enum class ItemType { Header, GridHeader, Bool, Int, Float, Choice, Action, StyleRow };
+// GridHeader is the non-selectable column-title row above it. ColumnBreak starts the
+// menu's second column; navigation runs down the first column and on into the second.
+enum class ItemType { Header, GridHeader, ColumnBreak, Bool, Int, Float, Choice, Action, StyleRow };
 
 struct Item {
     ItemType type;
@@ -37,6 +38,7 @@ constexpr int kGridCols = static_cast<int>(std::size(kGridColumns));
 
 Item Header(const char* label) { return { ItemType::Header, label }; }
 Item GridHeader() { return { ItemType::GridHeader, "" }; }
+Item ColumnBreak() { return { ItemType::ColumnBreak, "" }; }
 Item Toggle(const char* label, bool* v) { Item it{ ItemType::Bool, label }; it.b = v; return it; }
 Item Action(const char* label, void (*fn)()) { Item it{ ItemType::Action, label }; it.action = fn; return it; }
 Item StyleRow(const char* label, EspStyle* s) { Item it{ ItemType::StyleRow, label }; it.style = s; return it; }
@@ -83,14 +85,15 @@ std::vector<Item>& Items() {
         StyleRow("Animals", &g.animals),
         StyleRow("Vehicles", &g.vehicles),
 
-        Header("Finder"),
+        Header("FINDER"),
         Toggle("Collectibles", &g.collectibles),
         Toggle("Pickups", &g.pickups),
         FloatRange("Range", &g.finderRange, 50, 2000, 50, "%.0f m"),
         Toggle("Letter scraps", &g.letters),
         IntRange("Letters shown", &g.letterCount, 1, 10, 1, "%d nearest"),
 
-        Header("Auto-aim"),
+        ColumnBreak(),
+        Header("AUTO-AIM"),
         Toggle("Enabled", &g.aim),
         Choice("Aim at", &g.aimBone, kBoneLabels),
         Choice("Pick", &g.aimPick, kPickLabels),
@@ -101,7 +104,7 @@ std::vector<Item>& Items() {
         IntRange("Aim zone", &g.aimFov, 5, 180, 5, "%d deg", "any"),
         IntRange("Smoothing", &g.aimSmoothing, 1, 20, 1, "%d"),
 
-        Header("Misc"),
+        Header("MISC"),
         Toggle("Damage numbers", &g.damageNumbers),
         Toggle("Speedometer", &g.speedometer),
         Action("Teleport to waypoint", DoTeleport),
@@ -125,7 +128,7 @@ void DoReload() {
 }
 
 bool Selectable(const Item& it) {
-    return it.type != ItemType::Header && it.type != ItemType::GridHeader;
+    return it.type != ItemType::Header && it.type != ItemType::GridHeader && it.type != ItemType::ColumnBreak;
 }
 
 void Move(int dir) {
@@ -172,17 +175,20 @@ void Adjust(Item& it, int dir) {
     }
 }
 
-void FormatValue(const Item& it, char* buf, size_t n) {
+// Value text; the selected row gets GTA-style arrows on adjustable values.
+void FormatValue(const Item& it, bool selected, char* buf, size_t n) {
+    char v[48];
     switch (it.type) {
-        case ItemType::Bool:   std::snprintf(buf, n, "%s", *it.b ? "ON" : "off"); break;
-        case ItemType::Choice: std::snprintf(buf, n, "< %s >", it.choices[*it.i]); break;
+        case ItemType::Choice: std::snprintf(v, sizeof v, "%s", it.choices[*it.i]); break;
         case ItemType::Int:
-            if (it.maxLabel && *it.i >= it.max) std::snprintf(buf, n, "%s", it.maxLabel);
-            else std::snprintf(buf, n, it.fmt, *it.i);
+            if (it.maxLabel && *it.i >= it.max) std::snprintf(v, sizeof v, "%s", it.maxLabel);
+            else std::snprintf(v, sizeof v, it.fmt, *it.i);
             break;
-        case ItemType::Float:  std::snprintf(buf, n, it.fmt, *it.f); break;
-        default:               buf[0] = '\0'; break;
+        case ItemType::Float:  std::snprintf(v, sizeof v, it.fmt, *it.f); break;
+        default:               buf[0] = '\0'; return;
     }
+    if (selected) std::snprintf(buf, n, "< %s >", v);
+    else          std::snprintf(buf, n, "%s", v);
 }
 
 // Stops the arrow keys / Enter / Backspace from also driving the phone and frontend.
@@ -196,71 +202,132 @@ void BlockGameInput() {
         Invoke(N::DISABLE_CONTROL_ACTION, 0, c, 1);
 }
 
-// Menu layout (screen fractions).
-constexpr float kX = 0.015f, kW = 0.25f, kRowH = 0.024f;
-constexpr float kTextX = kX + 0.006f;
-constexpr float kValueX = kX + 0.14f;
-constexpr float kGridX = kX + 0.088f;  // centre of the first grid column
-constexpr float kGridColW = 0.0285f;
+// Menu layout (screen fractions): a banner across two columns of rows, GTA interaction-menu style.
+constexpr float kX = 0.015f, kTop = 0.04f;
+constexpr float kColW = 0.235f, kColGap = 0.004f;
+constexpr float kBannerH = 0.065f, kRowH = 0.022f;
+constexpr float kPad = 0.006f;                // text inset from the row edges
+constexpr float kTextScale = 0.24f, kSmallScale = 0.2f;
+constexpr float kTextDy = 0.002f;             // text baseline offset inside a row
+constexpr float kGridX = 0.085f;              // centre of the first grid column, from the column's left edge
+constexpr float kGridColW = 0.0245f;
 
-float GridCellX(int col) { return kGridX + col * kGridColW; }
+constexpr Color kBanner   {  30,  95, 175, 240 };
+constexpr Color kBarBg    {   0,   0,   0, 235 };
+constexpr Color kRowBg    {   0,   0,   0, 165 };
+constexpr Color kSelBg    { 240, 240, 240, 235 };
+constexpr Color kGridSelBg{ 255, 255, 255,  45 };
+constexpr Color kHudBlue  {  93, 182, 229, 255 };
+constexpr Color kText     { 245, 245, 245, 255 };
+constexpr Color kSelText  {  10,  10,  10, 255 };
+constexpr Color kDimText  { 150, 150, 150, 255 };
 
-void DrawGridHeader(float y) {
-    for (int c = 0; c < kGridCols; ++c)
-        Text(GridCellX(c), y + 0.004f, kGridColumns[c].title, kYellow, 0.22f);
+void RowRect(float x, float y, float w, Color c) { Rect(x + w * 0.5f, y + kRowH * 0.5f, w, kRowH, c); }
+void Label(float x, float y, const char* s, Color c, float scale = kTextScale) { Text(x, y + kTextDy, s, c, scale, false, 0, false); }
+void LabelRight(float right, float y, const char* s, Color c) { Label(right - TextWidth(s, kTextScale), y, s, c); }
+
+// A GTA-style checkbox: a frame, filled when on.
+void Checkbox(float cx, float cy, bool on, Color fg, Color bg) {
+    const float h = 0.013f, w = h / AspectRatio();
+    const float bh = 0.0018f, bw = bh / AspectRatio();
+    Rect(cx, cy, w, h, fg);
+    Rect(cx, cy, w - 2 * bw, h - 2 * bh, bg);
+    if (on) Rect(cx, cy, w - 4 * bw, h - 4 * bh, fg);
 }
 
-void DrawStyleRow(const Item& it, float y, bool selected) {
-    Text(kTextX + 0.006f, y + 0.002f, it.label, kWhite, 0.26f, false);
+float GridCellX(float colX, int col) { return colX + kGridX + col * kGridColW; }
+
+void DrawGridHeader(float x, float y) {
+    RowRect(x, y, kColW, kRowBg);
+    for (int c = 0; c < kGridCols; ++c)
+        Text(GridCellX(x, c), y + 0.004f, kGridColumns[c].title, kDimText, kSmallScale, true, 0, false);
+}
+
+void DrawStyleRow(const Item& it, float x, float y, bool selected) {
+    RowRect(x, y, kColW, selected ? kGridSelBg : kRowBg);
+    Label(x + kPad, y, it.label, kText);
     for (int c = 0; c < kGridCols; ++c) {
-        float cx = GridCellX(c);
+        float cx = GridCellX(x, c), cy = y + kRowH * 0.5f;
+        bool cell = selected && c == g_col;
+        if (cell) Rect(cx, cy, kGridColW * 0.92f, kRowH * 0.9f, kSelBg);
         bool on = it.style->*kGridColumns[c].field;
-        if (selected && c == g_col)
-            Rect(cx, y + kRowH * 0.5f, kGridColW * 0.9f, kRowH * 0.85f, { 255, 60, 255, 200 });
-        Text(cx, y + 0.002f, on ? "ON" : "-", on ? kWhite : kGrey, 0.26f);
+        Checkbox(cx, cy, on, cell ? kSelText : on ? kText : kDimText, cell ? kSelBg : kRowBg);
+    }
+}
+
+void DrawItem(const Item& it, float x, float y, bool selected) {
+    switch (it.type) {
+        case ItemType::Header:
+            RowRect(x, y, kColW, kBarBg);
+            Label(x + kPad, y, it.label, kHudBlue);
+            return;
+        case ItemType::GridHeader:
+            DrawGridHeader(x, y);
+            return;
+        case ItemType::StyleRow:
+            DrawStyleRow(it, x, y, selected);
+            return;
+        default:
+            break;
+    }
+
+    Color bg = selected ? kSelBg : kRowBg;
+    Color fg = selected ? kSelText : kText;
+    RowRect(x, y, kColW, bg);
+    Label(x + kPad, y, it.label, fg);
+
+    float right = x + kColW - kPad;
+    if (it.type == ItemType::Bool) {
+        float h = 0.013f / AspectRatio();
+        Checkbox(right - h * 0.5f, y + kRowH * 0.5f, *it.b, fg, bg);
+    } else {
+        char buf[64];
+        FormatValue(it, selected, buf, sizeof buf);
+        if (buf[0]) LabelRight(right, y, buf, fg);
     }
 }
 
 void Draw() {
     auto& items = Items();
-    float y = 0.12f;
+    const float totalW = 2 * kColW + kColGap;
 
-    Rect(kX + kW * 0.5f, y + kRowH * 0.5f, kW, kRowH * 1.3f, { 20, 20, 20, 230 });
-    Text(kTextX, y - 0.002f, "SPESP", kMagenta, 0.4f, false);
-    y += kRowH * 1.4f;
+    // Banner and subtitle bar with the position counter.
+    Rect(kX + totalW * 0.5f, kTop + kBannerH * 0.5f, totalW, kBannerH, kBanner);
+    Text(kX + totalW * 0.5f, kTop + 0.004f, "SPESP", kText, 0.85f, true, 1, false);
 
-    char buf[64];
+    int selIndex = 0, selCount = 0;
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (!Selectable(items[i])) continue;
+        ++selCount;
+        if (static_cast<int>(i) == g_sel) selIndex = selCount;
+    }
+    float y0 = kTop + kBannerH;
+    RowRect(kX, y0, totalW, kBarBg);
+    Label(kX + kPad, y0, "STORY MODE OVERLAY", kHudBlue);
+    char counter[16];
+    std::snprintf(counter, sizeof counter, "%d / %d", selIndex, selCount);
+    LabelRight(kX + totalW - kPad, y0, counter, kText);
+    y0 += kRowH;
+
+    // Rows, flowing into the second column at the break.
+    float x = kX, y = y0, bottom = y0;
     for (size_t idx = 0; idx < items.size(); ++idx) {
         const Item& it = items[idx];
-        bool selected = static_cast<int>(idx) == g_sel;
-
-        // Grid rows highlight just the selected cell, so their row background stays subtle.
-        Color bg = !selected ? Color{ 0, 0, 0, 170 }
-                 : it.type == ItemType::StyleRow ? Color{ 255, 60, 255, 60 }
-                 : Color{ 255, 60, 255, 140 };
-        Rect(kX + kW * 0.5f, y + kRowH * 0.5f, kW, kRowH, bg);
-
-        switch (it.type) {
-            case ItemType::Header:
-                Text(kTextX, y + 0.002f, it.label, kYellow, 0.28f, false);
-                break;
-            case ItemType::GridHeader:
-                DrawGridHeader(y);
-                break;
-            case ItemType::StyleRow:
-                DrawStyleRow(it, y, selected);
-                break;
-            default:
-                Text(kTextX + 0.006f, y + 0.002f, it.label, kWhite, 0.26f, false);
-                FormatValue(it, buf, sizeof buf);
-                Text(kValueX, y + 0.002f, buf, it.type == ItemType::Bool && !*it.b ? kGrey : kWhite, 0.26f, false);
-                break;
+        if (it.type == ItemType::ColumnBreak) {
+            x += kColW + kColGap;
+            y = y0;
+            continue;
         }
+        DrawItem(it, x, y, static_cast<int>(idx) == g_sel);
         y += kRowH;
+        if (y > bottom) bottom = y;
     }
 
-    Rect(kX + kW * 0.5f, y + kRowH * 0.5f, kW, kRowH, { 20, 20, 20, 230 });
-    Text(kTextX, y + 0.003f, "Arrows: move/change   Enter: toggle   Backspace/Delete: close", kGrey, 0.2f, false);
+    // Help bar under the taller column.
+    RowRect(kX, bottom, totalW, kBarBg);
+    Text(kX + totalW * 0.5f, bottom + 0.004f,
+         "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close",
+         kDimText, kSmallScale, true, 0, false);
 }
 
 } // namespace

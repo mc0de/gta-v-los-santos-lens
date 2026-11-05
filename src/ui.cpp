@@ -45,12 +45,12 @@ void OverlayLine(const Vec3& a, const Vec3& b, Color c) {
     Line3D(pull(a), pull(b), c);
 }
 
-void Text(float x, float y, const char* s, Color c, float scale, bool centre) {
-    Invoke(N::SET_TEXT_FONT, 0);
+void Text(float x, float y, const char* s, Color c, float scale, bool centre, int font, bool outline) {
+    Invoke(N::SET_TEXT_FONT, font);
     Invoke(N::SET_TEXT_SCALE, 0.0f, scale);
     Invoke(N::SET_TEXT_COLOUR, c.r, c.g, c.b, c.a);
     Invoke(N::SET_TEXT_CENTRE, centre ? 1 : 0);
-    Invoke(N::SET_TEXT_OUTLINE);
+    if (outline) Invoke(N::SET_TEXT_OUTLINE);
     Invoke(N::BEGIN_TEXT_COMMAND_DISPLAY_TEXT, "STRING");
     Invoke(N::ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME, s);
     Invoke(N::END_TEXT_COMMAND_DISPLAY_TEXT, x, y, 0);

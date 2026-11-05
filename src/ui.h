@@ -29,7 +29,9 @@ void Rect(float cx, float cy, float w, float h, Color c);
 void Line3D(const Vec3& a, const Vec3& b, Color c);
 // A world-space line that is never hidden behind geometry or models.
 void OverlayLine(const Vec3& a, const Vec3& b, Color c);
-void Text(float x, float y, const char* s, Color c, float scale = 0.26f, bool centre = true);
+// font: 0 = Chalet (normal), 1 = House Script (GTA menu banner), 7 = Pricedown.
+void Text(float x, float y, const char* s, Color c, float scale = 0.26f, bool centre = true,
+          int font = 0, bool outline = true);
 // Screen-fraction width of s when drawn by Text at this scale.
 float TextWidth(const char* s, float scale);
 // Draws a sprite from a streamed texture dictionary; returns false while the dictionary is still loading.

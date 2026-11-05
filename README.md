@@ -64,7 +64,7 @@ Other options:
 
 ## Menu and hotkeys
 
-Press **Delete** to open the menu. Arrow keys move / change values (in the ESP grid, Left/Right move between cells), Enter toggles or runs an action, Backspace or Delete closes it. (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `SPESP.ini` when the menu closes.
+Press **Delete** to open the menu. It's laid out in two columns (ESP and Finder on the left, Auto-aim and Misc on the right); Up/Down runs down the left column and on into the right one. Arrow keys move / change values (in the ESP grid, Left/Right move between cells), Enter toggles or runs an action, Backspace or Delete closes it. (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `SPESP.ini` when the menu closes.
 
 | Key | Action |
 |---|---|
