@@ -362,15 +362,25 @@ void SpeedometerTick(Ped player) {
     }
     if (speed > s_best) s_best = speed;
 
-    // GTA timer-bar style, stacked upward from the bottom-right corner (SpeedoX / SpeedoY):
+    // GTA timer-bar style: one dark panel in the bottom-right corner (SpeedoX / SpeedoY):
     //   BENEFACTOR                 Panto     make (cyan) / model
     //   Mercedes-Benz           Compacts     real-life brand (green) / class (yellow)
     //   TOP 180                 BEST 150     stats, light grey
     //   SPEED                  123 KM/H      big condensed number, orange at top speed
-    // Bars fade in from the left like the game's race and mission timers.
-    constexpr float kBarH = 0.03f, kSpeedBarH = 0.046f, kGap = 0.003f, kMinW = 0.17f, kPad = 0.008f;
-    constexpr float kLabelScale = 0.27f, kValueScale = 0.3f, kSpeedScale = 0.62f, kUnitScale = 0.27f;
+    //
+    // Laid out by capital-letter height rather than text boxes, so the padding around the panel
+    // and the gaps between rows look equal on screen. Sizes are screen-height fractions;
+    // horizontal ones are divided by the aspect ratio to match in pixels.
+    constexpr float kLabelScale = 0.23f, kValueScale = 0.25f, kSpeedScale = 0.45f;
     constexpr int kFontCondensed = 4;
+    // Measured in-game: where capitals start below the y passed to Text, and how tall they are,
+    // per unit of text scale.
+    constexpr float kCapTop0 = 0.029f, kCapH0 = 0.033f; // font 0 (Chalet)
+    constexpr float kCapTop4 = 0.035f, kCapH4 = 0.031f; // font 4 (condensed)
+    constexpr float kPadY = 0.009f;   // panel edge to text, all four sides
+    constexpr float kGapY = 0.009f;   // between rows, capital to capital
+    constexpr float kMinW = 0.13f;
+    constexpr Color kPanel     {   0,   0,   0, 165 };
     constexpr Color kLabel     { 225, 225, 225, 255 };
     constexpr Color kStatColor { 200, 200, 200, 255 };
 
@@ -383,60 +393,56 @@ void SpeedometerTick(Ped player) {
     std::snprintf(speedBuf, sizeof speedBuf, "%.0f", speed);
     std::snprintf(topBuf, sizeof topBuf, "TOP %.0f", top);
     std::snprintf(bestBuf, sizeof bestBuf, "BEST %.0f", s_best);
-    const char* unit = " KM/H";
+    const char* unit = "KM/H";
+    const bool infoRow = *real || *s_class;
 
-    // Wide enough for the longest row.
+    const float aspect = AspectRatio();
+    const float padX = kPadY / aspect, gapX = 2.0f * kPadY / aspect, unitGap = 0.5f * kPadY / aspect;
+    // Small rows are as tall as the larger of their two scales' capitals.
+    const float rowCap = kCapH0 * kValueScale;
+    const float speedCap = kCapH4 * kSpeedScale;
+
     auto rowW = [&](const char* l, float ls, const char* r, float rs) {
-        return (*l ? TextWidth(l, ls) : 0.0f) + (*r ? TextWidth(r, rs) : 0.0f) + 3 * kPad;
+        return (*l ? TextWidth(l, ls) : 0.0f) + (*r ? TextWidth(r, rs) : 0.0f) + gapX;
     };
-    const float speedValW = TextWidth(speedBuf, kSpeedScale, kFontCondensed) + TextWidth(unit, kUnitScale);
-    const float w = (std::max)({ kMinW, rowW(make, kLabelScale, s_model, kValueScale),
-                                 rowW(real, kLabelScale, s_class, kValueScale),
-                                 rowW(topBuf, kLabelScale, bestBuf, kLabelScale),
-                                 rowW("SPEED", kLabelScale, "", 0.0f) + speedValW });
-    const float right = g.speedoX, left = right - w;
+    const float speedW = TextWidth("SPEED", kLabelScale) + gapX +
+                         TextWidth(speedBuf, kSpeedScale, kFontCondensed) + unitGap + TextWidth(unit, kLabelScale);
+    const float w = (std::max)({ kMinW, rowW(make, kLabelScale, s_model, kValueScale) + 2 * padX,
+                                 rowW(real, kLabelScale, s_class, kValueScale) + 2 * padX,
+                                 rowW(topBuf, kLabelScale, bestBuf, kLabelScale) + 2 * padX,
+                                 speedW + 2 * padX });
+    const int rows = infoRow ? 3 : 2;
+    const float h = 2 * kPadY + rows * (rowCap + kGapY) + speedCap;
+    const float right = g.speedoX, bottom = g.speedoY, left = right - w, topY = bottom - h;
+    Rect(left + w * 0.5f, topY + h * 0.5f, w, h, kPanel);
 
-    auto bar = [&](float top, float h) {
-        // Transparent on the left, near-black on the right.
-        constexpr int kSlices = 8;
-        for (int i = 0; i < kSlices; ++i) {
-            float x0 = left + w * i / kSlices;
-            int alpha = 40 + 140 * (i + 1) / kSlices;
-            Rect(x0 + w / kSlices * 0.5f, top + h * 0.5f, w / kSlices + 0.0005f, h, { 0, 0, 0, alpha });
-        }
+    // Draws text so its capitals sit on `base` (the bottom of the capitals).
+    auto draw = [&](float x, float base, const char* t, Color c, float scale, int font) {
+        float capTop = font == kFontCondensed ? kCapTop4 : kCapTop0;
+        float capH = font == kFontCondensed ? kCapH4 : kCapH0;
+        Text(x, base - (capTop + capH) * scale, t, c, scale, false, font, false);
     };
-    auto label = [&](float top, float h, const char* t, Color c) {
-        if (*t) Text(left + kPad, top + h * 0.5f - 0.011f, t, c, kLabelScale, false, 0, false);
-    };
-    auto value = [&](float top, float h, const char* t, Color c, float scale) {
-        if (*t) Text(right - kPad - TextWidth(t, scale), top + h * 0.5f - scale * 0.042f, t, c, scale, false, 0, false);
+    const float lx = left + padX, rx = right - padX;
+    auto row = [&](float base, const char* l, Color lc, const char* r, Color rc, float rs) {
+        if (*l) draw(lx, base, l, lc, kLabelScale, 0);
+        if (*r) draw(rx - TextWidth(r, rs), base, r, rc, rs, 0);
     };
 
-    float y = g.speedoY - kSpeedBarH;
-    bar(y, kSpeedBarH);
-    label(y, kSpeedBarH, "SPEED", kLabel);
-    {
-        Color sc = top > 0.0f && speed >= top ? kOrange : kWhite;
-        float unitX = right - kPad - TextWidth(unit, kUnitScale);
-        Text(unitX, y + kSpeedBarH * 0.5f - 0.011f, unit, kLabel, kUnitScale, false, 0, false);
-        Text(unitX - TextWidth(speedBuf, kSpeedScale, kFontCondensed), y + 0.002f, speedBuf, sc,
-             kSpeedScale, false, kFontCondensed, false);
+    float base = topY + kPadY + rowCap;
+    row(base, make, kCyan, s_model, kWhite, kValueScale);
+    if (infoRow) {
+        base += kGapY + rowCap;
+        row(base, real, kGreen, s_class, kYellow, kValueScale);
     }
+    base += kGapY + rowCap;
+    row(base, topBuf, kStatColor, bestBuf, kStatColor, kLabelScale);
 
-    y -= kGap + kBarH;
-    bar(y, kBarH);
-    label(y, kBarH, topBuf, kStatColor);
-    value(y, kBarH, bestBuf, kStatColor, kLabelScale);
-
-    if (*real || *s_class) {
-        y -= kGap + kBarH;
-        bar(y, kBarH);
-        label(y, kBarH, real, kGreen);
-        value(y, kBarH, s_class, kYellow, kValueScale);
-    }
-
-    y -= kGap + kBarH;
-    bar(y, kBarH);
-    label(y, kBarH, make, kCyan);
-    value(y, kBarH, s_model, kWhite, kValueScale);
+    // Speed row: label, number and unit share the number's baseline.
+    base += kGapY + speedCap;
+    Color sc = top > 0.0f && speed >= top ? kOrange : kWhite;
+    float unitX = rx - TextWidth(unit, kLabelScale);
+    float numX = unitX - unitGap - TextWidth(speedBuf, kSpeedScale, kFontCondensed);
+    draw(lx, base, "SPEED", kLabel, kLabelScale, 0);
+    draw(numX, base, speedBuf, sc, kSpeedScale, kFontCondensed);
+    draw(unitX, base, unit, kLabel, kLabelScale, 0);
 }
