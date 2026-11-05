@@ -2,6 +2,7 @@
 // User settings, persisted to SPESP.ini next to the .asi.
 
 #include <windows.h>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,17 @@ struct EspStyle {
     bool tracers;
 };
 
+// Vehicle class names by GET_VEHICLE_CLASS id (0-22): the vehicle ESP filter's checklist,
+// the speedometer's class line and the names used by VehicleTypes in the ini.
+constexpr int kVehicleClassCount = 23;
+extern const char* const kVehicleClasses[kVehicleClassCount];
+
+using VehicleClassSet = std::array<bool, kVehicleClassCount>;
+inline VehicleClassSet AllVehicleClasses() { VehicleClassSet s; s.fill(true); return s; }
+
+// "All", "None", the one class shown, or "N types".
+const char* VehicleTypesSummary();
+
 struct Collectible {
     std::string model;
     std::string label;
@@ -44,6 +56,7 @@ struct Settings {
     bool threatArrows = true;
     float pedRange = 250.0f;
     float vehRange = 350.0f;
+    VehicleClassSet vehTypes = AllVehicleClasses(); // vehicle classes the ESP shows
 
     // Peds are sorted into one category each, checked in this order:
     // animal, hostile (fighting you / hates you), cop (cop/SWAT/army), pedestrian (everyone else).

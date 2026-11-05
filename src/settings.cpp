@@ -5,6 +5,24 @@
 
 Settings g;
 
+const char* const kVehicleClasses[kVehicleClassCount] = {
+    "Compacts", "Sedans", "SUVs", "Coupes", "Muscle", "Sports Classics", "Sports", "Super", "Motorcycles",
+    "Off-road", "Industrial", "Utility", "Vans", "Cycles", "Boats", "Helicopters", "Planes", "Service",
+    "Emergency", "Military", "Commercial", "Trains", "Open Wheel",
+};
+
+const char* VehicleTypesSummary() {
+    int count = 0, last = 0;
+    for (int i = 0; i < kVehicleClassCount; ++i)
+        if (g.vehTypes[i]) { ++count; last = i; }
+    if (count == kVehicleClassCount) return "All";
+    if (count == 0) return "None";
+    if (count == 1) return kVehicleClasses[last];
+    static char buf[16];
+    std::snprintf(buf, sizeof buf, "%d types", count);
+    return buf;
+}
+
 namespace {
 
 std::string g_path;
@@ -152,6 +170,33 @@ void WriteEnum(const char* sec, const char* key, E v, const char* const (&names)
     Write(sec, key, names[static_cast<size_t>(v)]);
 }
 
+// "All", "None", or a comma-separated list of class names ("Super, Sports"). Unknown names are skipped.
+void ReadVehicleTypes(const char* sec, const char* key, VehicleClassSet& v) {
+    std::string s = Read(sec, key);
+    if (s.empty() || _stricmp(s.c_str(), "all") == 0) return;
+    v.fill(false);
+    if (_stricmp(s.c_str(), "none") == 0) return;
+    for (size_t start = 0; start <= s.size();) {
+        size_t comma = s.find(',', start);
+        if (comma == std::string::npos) comma = s.size();
+        std::string name = Trim(s.substr(start, comma - start));
+        for (int i = 0; i < kVehicleClassCount; ++i)
+            if (_stricmp(name.c_str(), kVehicleClasses[i]) == 0) v[i] = true;
+        start = comma + 1;
+    }
+}
+
+void WriteVehicleTypes(const char* sec, const char* key, const VehicleClassSet& v) {
+    std::string s;
+    int count = 0;
+    for (int i = 0; i < kVehicleClassCount; ++i) {
+        if (!v[i]) continue;
+        if (count++) s += ", ";
+        s += kVehicleClasses[i];
+    }
+    Write(sec, key, count == kVehicleClassCount ? "All" : count == 0 ? "None" : s);
+}
+
 void ReadStyle(const char* sec, EspStyle& s) {
     ReadBool(sec, "Enabled", s.enabled);
     ReadBool(sec, "Box", s.box);
@@ -253,6 +298,7 @@ void ReloadSettings() {
     ReadBool("ESP", "ThreatArrows", g.threatArrows);
     ReadFloat("ESP", "PedRange", g.pedRange);
     ReadFloat("ESP", "VehicleRange", g.vehRange);
+    ReadVehicleTypes("ESP", "VehicleTypes", g.vehTypes);
     ReadStyle("ESP.Hostiles", g.hostiles);
     ReadStyle("ESP.Animals", g.animals);
     ReadStyle("ESP.Cops", g.cops);
@@ -307,6 +353,7 @@ void SaveSettings() {
     WriteBool("ESP", "ThreatArrows", g.threatArrows);
     WriteFloat("ESP", "PedRange", g.pedRange);
     WriteFloat("ESP", "VehicleRange", g.vehRange);
+    WriteVehicleTypes("ESP", "VehicleTypes", g.vehTypes);
     WriteStyle("ESP.Hostiles", g.hostiles);
     WriteStyle("ESP.Animals", g.animals);
     WriteStyle("ESP.Cops", g.cops);

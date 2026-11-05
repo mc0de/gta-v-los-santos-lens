@@ -116,9 +116,9 @@ Color Faded(Color c, float dist, float range) {
 }
 
 // Draws the parts of a target that its style enables: box, health bar and label above it,
-// distance below, tracer from the player.
+// distance below, tracer from the player. labelDot adds a small square right of the label.
 void DrawTarget(const EspStyle& s, const Box2D& box, Color c, const Vec3& me, const Vec3& pos,
-                float dist, float healthFrac, const char* label, bool forceBox) {
+                float dist, float healthFrac, const char* label, bool forceBox, bool labelDot = false) {
     if (s.box || forceBox)
         DrawBox(box, c);
 
@@ -129,8 +129,14 @@ void DrawTarget(const EspStyle& s, const Box2D& box, Color c, const Vec3& me, co
     }
 
     float cx = (box.x0 + box.x1) * 0.5f;
-    if (s.labels && label && *label)
+    if (s.labels && label && *label) {
         Text(cx, labelY, label, c, kLabelScale);
+        if (labelDot) {
+            const float h = 0.007f, w = h / AspectRatio();
+            float x = cx + TextWidth(label, kLabelScale) * 0.5f + w * 1.5f;
+            Rect(x, labelY + kLabelHeight * 0.55f, w, h, c);
+        }
+    }
 
     if (s.distance) {
         char buf[16];
@@ -208,10 +214,13 @@ void DrawVehicles(Ped player, const Vec3& me) {
         float dist = Distance(me, pos);
         if (dist > g.vehRange) continue;
 
+        int cls = Invoke<int>(N::GET_VEHICLE_CLASS, v);
+        if (cls >= 0 && cls < kVehicleClassCount && !g.vehTypes[cls]) continue;
+
         Box2D box;
         if (!ScreenBox(v, box)) continue;
 
-        bool emergency = Invoke<int>(N::GET_VEHICLE_CLASS, v) == 18;
+        bool emergency = cls == 18;
         Color c = Faded(wrecked ? kGrey : emergency ? kBlue : kYellow, dist, g.vehRange);
 
         float healthFrac = -1.0f;
@@ -222,21 +231,23 @@ void DrawVehicles(Ped player, const Vec3& me) {
         }
 
         label[0] = '\0';
+        bool occupied = false;
         if (s.labels) {
             const char* name = VehicleModelName(Invoke<Hash>(N::GET_ENTITY_MODEL, v));
             int len = std::snprintf(label, sizeof label, "%s", *name ? name : "?");
             if (!wrecked && len > 0 && len < static_cast<int>(sizeof label)) {
                 Ped driver = Invoke<Ped>(N::GET_PED_IN_VEHICLE_SEAT, v, -1);
+                occupied = driver && driver != player;
                 int lock = Invoke<int>(N::GET_VEHICLE_DOOR_LOCK_STATUS, v);
                 bool locked = lock == 2 || lock == 3 || lock == 4 || lock == 10;
-                std::snprintf(label + len, sizeof label - len, "%s%s%s",
+                std::snprintf(label + len, sizeof label - len, "%s%s",
                               emergency ? " | emergency" : "",
-                              driver && driver != player ? " | occupied" : "",
                               locked ? " | locked" : "");
             }
         }
 
-        DrawTarget(s, box, c, me, pos, dist, healthFrac, label, false);
+        // Occupied vehicles get a dot after the label instead of a text tag.
+        DrawTarget(s, box, c, me, pos, dist, healthFrac, label, false, occupied);
     }
 }
 

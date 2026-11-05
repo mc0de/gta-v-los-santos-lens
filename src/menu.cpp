@@ -8,7 +8,10 @@ namespace {
 // StyleRow is one row of the ESP grid (a target category with a checkbox per column);
 // GridHeader is the non-selectable column-title row above it. ColumnBreak starts the
 // menu's second column; navigation runs down the first column and on into the second.
-enum class ItemType { Header, GridHeader, ColumnBreak, Bool, Int, Float, Choice, Action, StyleRow };
+// Submenu opens another page of items; Backspace returns to the main page.
+enum class ItemType { Header, GridHeader, ColumnBreak, Bool, Int, Float, Choice, Action, StyleRow, Submenu };
+
+enum Page { kMainPage, kVehicleTypesPage, kPageCount };
 
 struct Item {
     ItemType type;
@@ -23,6 +26,8 @@ struct Item {
     int choiceCount = 0;
     void (*action)() = nullptr;
     EspStyle* style = nullptr;
+    Page page = kMainPage;            // Submenu target
+    const char* (*value)() = nullptr; // Submenu value text
 };
 
 struct GridColumn { const char* title; bool EspStyle::* field; };
@@ -42,6 +47,9 @@ Item ColumnBreak() { return { ItemType::ColumnBreak, "" }; }
 Item Toggle(const char* label, bool* v) { Item it{ ItemType::Bool, label }; it.b = v; return it; }
 Item Action(const char* label, void (*fn)()) { Item it{ ItemType::Action, label }; it.action = fn; return it; }
 Item StyleRow(const char* label, EspStyle* s) { Item it{ ItemType::StyleRow, label }; it.style = s; return it; }
+Item Submenu(const char* label, Page page, const char* (*value)()) {
+    Item it{ ItemType::Submenu, label }; it.page = page; it.value = value; return it;
+}
 
 Item IntRange(const char* label, int* v, int min, int max, int step, const char* fmt, const char* maxLabel = nullptr) {
     Item it{ ItemType::Int, label };
@@ -68,9 +76,30 @@ const char* const kPickLabels[]     = { "Crosshair", "Nearest" };
 
 void DoTeleport();
 void DoReload();
+void ShowAllVehicleTypes() { g.vehTypes.fill(true); }
+void ShowNoVehicleTypes()  { g.vehTypes.fill(false); }
 
-std::vector<Item>& Items() {
-    static std::vector<Item> items = {
+// One checkbox per vehicle class, split over the two columns.
+std::vector<Item> BuildVehicleTypesPage() {
+    std::vector<Item> items = {
+        Header("VEHICLE TYPES"),
+        Action("Show all", ShowAllVehicleTypes),
+        Action("Show none", ShowNoVehicleTypes),
+    };
+    const int firstColumn = (kVehicleClassCount + 1) / 2;
+    for (int i = 0; i < kVehicleClassCount; ++i) {
+        if (i == firstColumn) {
+            items.push_back(ColumnBreak());
+            items.push_back(Header(""));
+        }
+        items.push_back(Toggle(kVehicleClasses[i], &g.vehTypes[i]));
+    }
+    return items;
+}
+
+std::vector<Item>& PageItems(Page page) {
+    static std::vector<Item> vehicleTypes = BuildVehicleTypesPage();
+    static std::vector<Item> main = {
         Header("ESP"),
         Toggle("Enabled", &g.esp),
         Toggle("Show dead", &g.showDead),
@@ -78,6 +107,7 @@ std::vector<Item>& Items() {
         Toggle("Threat arrows", &g.threatArrows),
         FloatRange("Ped range", &g.pedRange, 25, 1000, 25, "%.0f m"),
         FloatRange("Vehicle range", &g.vehRange, 25, 1000, 25, "%.0f m"),
+        Submenu("Vehicle types", kVehicleTypesPage, VehicleTypesSummary),
         GridHeader(),
         StyleRow("Hostiles", &g.hostiles),
         StyleRow("Cops", &g.cops),
@@ -112,13 +142,17 @@ std::vector<Item>& Items() {
         IntRange("Hours to skip", &g.skipHours, 1, 23, 1, "%d h"),
         Action("Reload settings file", DoReload),
     };
-    return items;
+    return page == kVehicleTypesPage ? vehicleTypes : main;
 }
 
 bool g_open = false;
-int g_sel = 1;
+Page g_page = kMainPage;
+int g_pageSel[kPageCount] = { 1, 1 }; // selected item on each page (index 1: first row after the header)
 int g_col = 0; // selected column within grid rows
 bool g_pendingTeleport = false;
+
+std::vector<Item>& Items() { return PageItems(g_page); }
+int& Sel() { return g_pageSel[g_page]; }
 
 void DoTeleport() { g_pendingTeleport = true; }
 
@@ -134,9 +168,10 @@ bool Selectable(const Item& it) {
 void Move(int dir) {
     auto& items = Items();
     int n = static_cast<int>(items.size());
+    int& sel = Sel();
     do {
-        g_sel = (g_sel + dir + n) % n;
-    } while (!Selectable(items[g_sel]));
+        sel = (sel + dir + n) % n;
+    } while (!Selectable(items[sel]));
 }
 
 // dir: -1 / +1 for Left / Right, 0 for Enter.
@@ -160,6 +195,9 @@ void Adjust(Item& it, int dir) {
             break;
         case ItemType::Action:
             if (dir == 0) it.action();
+            break;
+        case ItemType::Submenu:
+            if (dir >= 0) g_page = it.page;
             break;
         case ItemType::StyleRow:
             // Left/Right move between cells; Enter toggles the selected one.
@@ -185,6 +223,9 @@ void FormatValue(const Item& it, bool selected, char* buf, size_t n) {
             else std::snprintf(v, sizeof v, it.fmt, *it.i);
             break;
         case ItemType::Float:  std::snprintf(v, sizeof v, it.fmt, *it.f); break;
+        case ItemType::Submenu:
+            std::snprintf(buf, n, "%s >", it.value ? it.value() : "");
+            return;
         default:               buf[0] = '\0'; return;
     }
     if (selected) std::snprintf(buf, n, "< %s >", v);
@@ -299,7 +340,7 @@ void Draw() {
     for (size_t i = 0; i < items.size(); ++i) {
         if (!Selectable(items[i])) continue;
         ++selCount;
-        if (static_cast<int>(i) == g_sel) selIndex = selCount;
+        if (static_cast<int>(i) == Sel()) selIndex = selCount;
     }
     float y0 = kTop + kBannerH;
     RowRect(kX, y0, totalW, kBarBg);
@@ -318,7 +359,7 @@ void Draw() {
             y = y0;
             continue;
         }
-        DrawItem(it, x, y, static_cast<int>(idx) == g_sel);
+        DrawItem(it, x, y, static_cast<int>(idx) == Sel());
         y += kRowH;
         if (y > bottom) bottom = y;
     }
@@ -326,7 +367,9 @@ void Draw() {
     // Help bar under the taller column.
     RowRect(kX, bottom, totalW, kBarBg);
     Text(kX + totalW * 0.5f, bottom + 0.004f,
-         "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close",
+         g_page == kMainPage
+             ? "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close"
+             : "Up/Down: move    Enter: toggle    Backspace: back    Delete: close",
          kDimText, kSmallScale, true, 0, false);
 }
 
@@ -336,6 +379,7 @@ bool MenuIsOpen() { return g_open; }
 
 void MenuToggle() {
     g_open = !g_open;
+    g_page = kMainPage;
     if (!g_open) SaveSettings();
 }
 
@@ -349,13 +393,16 @@ void MenuTick() {
 
     BlockGameInput();
 
-    auto& items = Items();
+    // Items() is looked up per key: opening a submenu switches pages mid-pass.
     if (KeyRepeat(VK_UP))      Move(-1);
     if (KeyRepeat(VK_DOWN))    Move(1);
-    if (KeyRepeat(VK_LEFT))    Adjust(items[g_sel], -1);
-    if (KeyRepeat(VK_RIGHT))   Adjust(items[g_sel], 1);
-    if (KeyPressed(VK_RETURN)) Adjust(items[g_sel], 0);
-    if (KeyPressed(VK_BACK))   MenuToggle();
+    if (KeyRepeat(VK_LEFT))    Adjust(Items()[Sel()], -1);
+    if (KeyRepeat(VK_RIGHT))   Adjust(Items()[Sel()], 1);
+    if (KeyPressed(VK_RETURN)) Adjust(Items()[Sel()], 0);
+    if (KeyPressed(VK_BACK)) {
+        if (g_page != kMainPage) g_page = kMainPage;
+        else                     MenuToggle();
+    }
 
     Draw();
 }

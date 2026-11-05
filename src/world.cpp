@@ -319,13 +319,6 @@ void SkipTime() {
 
 namespace {
 
-// GET_VEHICLE_CLASS ids 0-22.
-const char* const kVehicleClasses[] = {
-    "Compacts", "Sedans", "SUVs", "Coupes", "Muscle", "Sports Classics", "Sports", "Super", "Motorcycles",
-    "Off-road", "Industrial", "Utility", "Vans", "Cycles", "Boats", "Helicopters", "Planes", "Service",
-    "Emergency", "Military", "Commercial", "Trains", "Open Wheel",
-};
-
 const VehicleMake* FindVehicleMake(Hash model) {
     auto end = std::end(kVehicleMakes);
     auto it = std::lower_bound(std::begin(kVehicleMakes), end, static_cast<uint32_t>(model),
@@ -358,7 +351,7 @@ void SpeedometerTick(Ped player) {
         s_make = FindVehicleMake(model);
         std::snprintf(s_model, sizeof s_model, "%s", VehicleModelName(model));
         int cls = Invoke<int>(N::GET_VEHICLE_CLASS, veh);
-        s_class = cls >= 0 && cls < static_cast<int>(std::size(kVehicleClasses)) ? kVehicleClasses[cls] : "";
+        s_class = cls >= 0 && cls < kVehicleClassCount ? kVehicleClasses[cls] : "";
     }
     if (speed > s_best) s_best = speed;
 

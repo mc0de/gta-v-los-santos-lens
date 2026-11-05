@@ -6,6 +6,7 @@
 #include "features.h"
 #include "menu.h"
 #include <cstdio>
+#include <cstring>
 
 namespace {
 
@@ -16,12 +17,16 @@ HMODULE g_module = nullptr;
 void DrawStatus() {
     if (!g.esp && !g.aim) return;
 
-    char cats[16] = "";
+    char cats[48] = "";
     if (g.esp) {
-        std::snprintf(cats, sizeof cats, "%s%s%s%s%s",
+        // A vehicle type filter is shown after the V, e.g. "V:Super" or "V:3 types".
+        const char* types = VehicleTypesSummary();
+        bool filtered = g.vehicles.enabled && std::strcmp(types, "All") != 0;
+        std::snprintf(cats, sizeof cats, "%s%s%s%s%s%s%s",
                       g.hostiles.enabled ? "H" : "", g.cops.enabled ? "C" : "",
                       g.pedestrians.enabled ? "P" : "", g.animals.enabled ? "A" : "",
-                      g.vehicles.enabled ? "V" : "");
+                      g.vehicles.enabled ? "V" : "",
+                      filtered ? ":" : "", filtered ? types : "");
     }
 
     char status[64];

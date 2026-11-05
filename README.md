@@ -23,7 +23,7 @@ Targets are sorted into categories, and for each category you choose what to dra
 | Box | 2D bounding box |
 | HP | Small health bar above the box |
 | Dist | Distance below the box |
-| Info | Peds: COP / SWAT / ARMY and the weapon held. Vehicles: name plus `emergency`, `occupied`, `locked` tags |
+| Info | Peds: COP / SWAT / ARMY and the weapon held. Vehicles: name plus `emergency` and `locked` tags, and a small dot after the name when someone is driving |
 | Line | Tracer from you to the target, visible through walls |
 
 Defaults: hostiles and cops get everything except tracers, pedestrians and animals get box and distance, and animals are off.
@@ -32,6 +32,7 @@ Other ESP options:
 - **Show dead**: also draw dead peds and wrecked vehicles (grey). Off by default.
 - **Threat arrows**: red arrows around the screen centre pointing at hostiles you can't see on screen.
 - **Distance fade**: far targets are drawn fainter.
+- **Vehicle types**: a checklist of vehicle classes (Super, Sports, Muscle, Motorcycles, Helicopters, ...) for finding a certain kind of vehicle quickly. Only checked classes are drawn. All are checked by default. Press Enter on the item to open the list, which also has **Show all** and **Show none**, and Backspace to go back. While some classes are unchecked, the status line shows the filter after the V, e.g. `V:Super` or `V:3 types`.
 - The current auto-aim target is always drawn, in magenta, even if its category is off.
 
 ### Auto-aim
@@ -79,14 +80,14 @@ Press **Delete** to open the menu. It's laid out in two columns (ESP and Finder 
 
 F5–F8 are left alone because the game uses them for character switching.
 
-A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | AIM HEAD`, listing the ESP categories that are on: H = hostiles, C = cops, P = pedestrians, A = animals, V = vehicles.
+A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | AIM HEAD`, listing the ESP categories that are on: H = hostiles, C = cops, P = pedestrians, A = animals, V = vehicles (plus `:Type` when a vehicle type filter is set).
 
 ## Configuration (`SPESP.ini`)
 
 Created next to `SPESP.asi` with defaults on first run. Edit it while the game runs and use **Reload settings file** in the menu to apply.
 
 - `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey.
-- `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position, `SpeedoX` / `SpeedoY` for the speedometer position and `DamageX` / `DamageY` for the damage numbers (0–1 screen fractions). Values outside the menu's ranges are clamped, and spaces around `=` are ignored.
+- `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position, `SpeedoX` / `SpeedoY` for the speedometer position and `DamageX` / `DamageY` for the damage numbers (0–1 screen fractions). `[ESP] VehicleTypes` is `All`, `None`, or a comma-separated list of the menu's class names (`Super, Sports, Sports Classics`). Values outside the menu's ranges are clamped, and spaces around `=` are ignored.
 - `[ESP.Hostiles]`, `[ESP.Cops]`, `[ESP.Pedestrians]`, `[ESP.Animals]`, `[ESP.Vehicles]`: the grid, with keys `Enabled`, `Box`, `Health`, `Distance`, `Labels`, `Tracers`.
 - `[Collectibles]`: `model_name=Label` lines.
 - `[Pickups]`: `model_name=Label` lines naming non-weapon pickups.
