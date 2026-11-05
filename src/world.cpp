@@ -122,12 +122,10 @@ void DrawScrap(const Vec3& base, float d) {
 
 // ---- Damage numbers ----
 
-// Shown as a short list at a fixed spot next to the crosshair (DamageX / DamageY), newest at the
-// bottom, so they stay readable however fast targets move.
-struct Popup { int amount; bool kill; int start; };
+// Each number floats up from the ped's head and fades out.
+struct Popup { Vec3 pos; int amount; bool kill; int start; };
 
-constexpr int kPopupLifetimeMs = 1500;
-constexpr size_t kMaxPopups = 6;
+constexpr int kPopupLifetimeMs = 1000;
 // A hit counts as the player's only this long after they last shot, fought or drove.
 constexpr int kAttackWindowMs = 3000;
 // Fully saturated so the numbers stand out against bright scenery.
@@ -225,37 +223,34 @@ void DamageNumbersTick(Ped player) {
         if (it == g_lastHp.end() || it->second.dead) continue; // unseen, or already dead
         int lost = it->second.hp - cur.hp;
 
+        bool kill = false;
         if (cur.dead) {
             Entity killer = Invoke<Entity>(N::GET_PED_SOURCE_OF_DEATH, p);
-            if (killer && (killer == player || killer == myVehicle))
-                g_popups.push_back({ lost > 0 ? lost : 0, true, now });
-        } else if (lost > 0 && attacking && Invoke<int>(N::HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY, p, player, 1)) {
-            g_popups.push_back({ lost, false, now });
+            if (!killer || (killer != player && killer != myVehicle)) continue;
+            kill = true;
+        } else if (lost <= 0 || !attacking || !Invoke<int>(N::HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY, p, player, 1)) {
+            continue;
         }
+        Vec3 head = Invoke<Vec3>(N::GET_PED_BONE_COORDS, p, 31086, 0.0f, 0.0f, 0.0f);
+        g_popups.push_back({ head, lost > 0 ? lost : 0, kill, now });
     }
     g_lastHp.swap(hpNow);
 
     g_popups.erase(std::remove_if(g_popups.begin(), g_popups.end(), [now](const Popup& p) {
         return now < p.start || now - p.start > kPopupLifetimeMs;
     }), g_popups.end());
-    if (g_popups.size() > kMaxPopups)
-        g_popups.erase(g_popups.begin(), g_popups.end() - kMaxPopups);
 
-    // Newest at the bottom; each one pops in slightly larger, then fades out in its second half.
-    constexpr float kLineH = 0.03f;
+    // Numbers float upward; fully opaque for the first half, then fade out.
     char buf[32];
-    float y = g.damageY;
-    for (size_t i = g_popups.size(); i-- > 0;) {
-        const Popup& pop = g_popups[i];
+    for (const Popup& pop : g_popups) {
         float t = (now - pop.start) / float(kPopupLifetimeMs);
-        float alpha = t < 0.5f ? 1.0f : 1.0f - (t - 0.5f) * 2.0f;
-        float grow = t < 0.08f ? 1.0f + (0.08f - t) * 4.0f : 1.0f;
+        float sx, sy;
+        if (!WorldToScreen(pop.pos.x, pop.pos.y, pop.pos.z + 0.3f + t * 0.8f, sx, sy)) continue;
         if (pop.kill && pop.amount > 0) std::snprintf(buf, sizeof buf, "-%d KILL", pop.amount);
         else if (pop.kill)              std::snprintf(buf, sizeof buf, "KILL");
         else                            std::snprintf(buf, sizeof buf, "-%d", pop.amount);
-        float scale = (pop.kill ? 0.5f : 0.42f) * grow;
-        Text(g.damageX, y, buf, WithAlpha(pop.kill ? kDamageKill : kDamageHit, alpha), scale, false);
-        y -= kLineH;
+        float alpha = t < 0.5f ? 1.0f : 1.0f - (t - 0.5f) * 2.0f;
+        Text(sx, sy, buf, WithAlpha(pop.kill ? kDamageKill : kDamageHit, alpha), pop.kill ? 0.5f : 0.42f);
     }
 }
 

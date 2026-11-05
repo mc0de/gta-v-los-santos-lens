@@ -111,8 +111,6 @@ void ClampSettings() {
     Clamp(g.skipHours, 1, 23);
     Clamp(g.speedoX, 0.0f, 1.0f);
     Clamp(g.speedoY, 0.0f, 1.0f);
-    Clamp(g.damageX, 0.0f, 1.0f);
-    Clamp(g.damageY, 0.0f, 1.0f);
     Clamp(g.statusX, 0.0f, 1.0f);
     Clamp(g.statusY, 0.0f, 1.0f);
 }
@@ -327,8 +325,6 @@ void ReloadSettings() {
     ReadBool("Misc", "Speedometer", g.speedometer);
     ReadFloat("Misc", "SpeedoX", g.speedoX);
     ReadFloat("Misc", "SpeedoY", g.speedoY);
-    ReadFloat("Misc", "DamageX", g.damageX);
-    ReadFloat("Misc", "DamageY", g.damageY);
     ReadFloat("Misc", "StatusX", g.statusX);
     ReadFloat("Misc", "StatusY", g.statusY);
 
@@ -382,8 +378,6 @@ void SaveSettings() {
     WriteBool("Misc", "Speedometer", g.speedometer);
     WriteFloat("Misc", "SpeedoX", g.speedoX);
     WriteFloat("Misc", "SpeedoY", g.speedoY);
-    WriteFloat("Misc", "DamageX", g.damageX);
-    WriteFloat("Misc", "DamageY", g.damageY);
     WriteFloat("Misc", "StatusX", g.statusX);
     WriteFloat("Misc", "StatusY", g.statusY);
 
