@@ -1,6 +1,7 @@
 #include "features.h"
 #include "vehicle_makes.h"
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -36,37 +37,6 @@ const char* FindLabel(const ModelLabels& list, Hash model) {
     return nullptr;
 }
 
-// The object pool can hold thousands of entries, so scan it twice a second rather than every frame.
-void Scan() {
-    g_found.clear();
-
-    if (g.collectibles) {
-        ResolveModelHashes(g.collectibleModels, g_collectibleHashes);
-        static int objects[4096];
-        int count = worldGetAllObjects(objects, 4096);
-        for (int i = 0; i < count; ++i) {
-            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
-            if (const char* label = FindLabel(g_collectibleHashes, model))
-                g_found.push_back({ objects[i], label, kOrange });
-        }
-    }
-
-    if (g.pickups) {
-        ResolveModelHashes(g.pickupModels, g_pickupHashes);
-        // Letter scraps are pickups too, but they have their own display.
-        Hash scrap = Invoke<Hash>(N::GET_HASH_KEY, "prop_ld_scrap");
-        static int pickups[512];
-        int count = worldGetAllPickups(pickups, 512);
-        for (int i = 0; i < count; ++i) {
-            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, pickups[i]);
-            if (model == scrap) continue;
-            const char* label = WeaponLabelForModel(model);
-            if (!label) label = FindLabel(g_pickupHashes, model);
-            g_found.push_back({ pickups[i], label ? label : "Pickup", kCyan });
-        }
-    }
-}
-
 // ---- Letter scraps ----
 
 // Only scraps the game has streamed in around the player exist as objects, so these are the
@@ -74,27 +44,58 @@ void Scan() {
 
 Hash g_scrapModel = 0;
 bool g_scrapModelValid = false;
-bool g_scrapInit = false;
+bool g_scrapWarned = false;
 std::vector<Entity> g_scraps;
-int g_nextScrapScan = 0;
 
 void InitScrapModel() {
-    if (g_scrapInit) return;
-    g_scrapInit = true;
+    if (g_scrapModel) return;
     g_scrapModel = Invoke<Hash>(N::GET_HASH_KEY, "prop_ld_scrap");
     g_scrapModelValid = Invoke<int>(N::IS_MODEL_VALID, g_scrapModel) != 0;
-    if (!g_scrapModelValid)
-        Notify("SPESP: letter scrap model not found");
 }
 
-// The object pool can hold thousands of entries, so scan it twice a second rather than every frame.
-void ScanScraps() {
-    static int objects[4096];
-    int count = worldGetAllObjects(objects, 4096);
+// One pass over the object and pickup pools for the finder and the letter scraps. The object
+// pool can hold thousands of entries, so this runs twice a second rather than every frame.
+void Scan() {
+    g_found.clear();
     g_scraps.clear();
-    for (int i = 0; i < count; ++i) {
-        if (Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]) == g_scrapModel)
-            g_scraps.push_back(objects[i]);
+    InitScrapModel();
+
+    bool wantScraps = g.letters && g_scrapModelValid;
+    if (g.collectibles || wantScraps) {
+        if (g.collectibles) ResolveModelHashes(g.collectibleModels, g_collectibleHashes);
+        static int objects[4096];
+        int count = worldGetAllObjects(objects, 4096);
+        for (int i = 0; i < count; ++i) {
+            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
+            if (wantScraps && model == g_scrapModel) {
+                g_scraps.push_back(objects[i]);
+            } else if (g.collectibles) {
+                if (const char* label = FindLabel(g_collectibleHashes, model))
+                    g_found.push_back({ objects[i], label, kOrange });
+            }
+        }
+    }
+
+    if (g.pickups) {
+        ResolveModelHashes(g.pickupModels, g_pickupHashes);
+        static int pickups[512];
+        int count = worldGetAllPickups(pickups, 512);
+        for (int i = 0; i < count; ++i) {
+            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, pickups[i]);
+            // Letter scraps are pickups too, but they have their own display.
+            if (model == g_scrapModel) continue;
+            const char* label = WeaponLabelForModel(model);
+            if (!label) label = FindLabel(g_pickupHashes, model);
+            g_found.push_back({ pickups[i], label ? label : "Pickup", kCyan });
+        }
+    }
+}
+
+void ScanIfDue() {
+    int now = Invoke<int>(N::GET_GAME_TIMER);
+    if (now >= g_nextScan || now < g_nextScan - 1000) {
+        Scan();
+        g_nextScan = now + 500;
     }
 }
 
@@ -121,28 +122,33 @@ void DrawScrap(const Vec3& base, float d) {
 
 // ---- Damage numbers ----
 
-struct Popup { Vec3 pos; int amount; bool kill; int start; };
+// Shown as a short list at a fixed spot next to the crosshair (DamageX / DamageY), newest at the
+// bottom, so they stay readable however fast targets move.
+struct Popup { int amount; bool kill; int start; };
 
-constexpr int kPopupLifetimeMs = 1000;
+constexpr int kPopupLifetimeMs = 1500;
+constexpr size_t kMaxPopups = 6;
+// A hit counts as the player's only this long after they last shot, fought or drove.
+constexpr int kAttackWindowMs = 3000;
 // Fully saturated so the numbers stand out against bright scenery.
 constexpr Color kDamageHit  { 255, 235,   0, 255 };
 constexpr Color kDamageKill { 255,  25,  25, 255 };
 std::vector<Popup> g_popups;
-std::unordered_map<Ped, int> g_lastHp;
+
+struct PedHp { int hp; bool dead; };
+std::unordered_map<Ped, PedHp> g_lastHp;
+int g_lastAttack = -100000;
 
 } // namespace
 
+// Also runs the shared scan for LettersTick, which comes after it each frame.
 void FinderTick(const Vec3& me) {
-    if (!g.collectibles && !g.pickups) {
+    if (!g.collectibles && !g.pickups && !g.letters) {
         g_found.clear();
+        g_scraps.clear();
         return;
     }
-
-    int now = Invoke<int>(N::GET_GAME_TIMER);
-    if (now >= g_nextScan) {
-        Scan();
-        g_nextScan = now + 500;
-    }
+    ScanIfDue();
 
     char buf[96];
     for (const auto& f : g_found) {
@@ -167,12 +173,10 @@ void FinderTick(const Vec3& me) {
 void LettersTick(const Vec3& me) {
     if (!g.letters) return;
     InitScrapModel();
-    if (!g_scrapModelValid) return;
-
-    int now = Invoke<int>(N::GET_GAME_TIMER);
-    if (now >= g_nextScrapScan) {
-        g_nextScrapScan = now + 500;
-        ScanScraps();
+    if (!g_scrapModelValid) {
+        if (!g_scrapWarned) Notify("SPESP: letter scrap model not found");
+        g_scrapWarned = true;
+        return;
     }
 
     // Nearest loaded scraps, ignoring the finder range.
@@ -196,48 +200,62 @@ void DamageNumbersTick(Ped player) {
         return;
     }
 
-    static int peds[512];
-    int count = worldGetAllPeds(peds, 512);
     int now = Invoke<int>(N::GET_GAME_TIMER);
+    Vehicle myVehicle = Invoke<Vehicle>(N::GET_VEHICLE_PED_IS_IN, player, 1); // current or last
+    bool driving = Invoke<int>(N::IS_PED_IN_ANY_VEHICLE, player, 0) && myVehicle &&
+                   Invoke<float>(N::GET_ENTITY_SPEED, myVehicle) > 3.0f;
+    if (Invoke<int>(N::IS_PED_SHOOTING, player) || Invoke<int>(N::IS_PED_IN_MELEE_COMBAT, player) || driving)
+        g_lastAttack = now;
+    bool attacking = now >= g_lastAttack && now - g_lastAttack <= kAttackWindowMs;
 
-    std::unordered_map<Ped, int> hpNow;
-    hpNow.reserve(count);
-    for (int i = 0; i < count; ++i) {
-        Ped p = peds[i];
+    // The game's damage records are only read here: clearing them would break mission scripts
+    // that count the player's kills through them. HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY stays true
+    // once set, so a later hit only counts while the player is attacking; a kill counts when the
+    // game names the player (or their vehicle) as the killer.
+    std::unordered_map<Ped, PedHp> hpNow;
+    hpNow.reserve(g_pedCount);
+    for (int i = 0; i < g_pedCount; ++i) {
+        Ped p = g_peds[i];
         if (p == player) continue;
-        int hp = Invoke<int>(N::GET_ENTITY_HEALTH, p) + Invoke<int>(N::GET_PED_ARMOUR, p);
-        hpNow[p] = hp;
+        PedHp cur{ Invoke<int>(N::GET_ENTITY_HEALTH, p) + Invoke<int>(N::GET_PED_ARMOUR, p),
+                   Invoke<int>(N::IS_ENTITY_DEAD, p, 0) != 0 };
+        hpNow[p] = cur;
 
-        // Health drop since last frame, on a ped the player has damaged. The game's damage
-        // record is read-only here: clearing it would break mission scripts that count the
-        // player's kills through it.
         auto it = g_lastHp.find(p);
-        if (it == g_lastHp.end() || hp >= it->second) continue;
-        if (!Invoke<int>(N::HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY, p, player, 1)) continue;
+        if (it == g_lastHp.end() || it->second.dead) continue; // unseen, or already dead
+        int lost = it->second.hp - cur.hp;
 
-        Vec3 head = Invoke<Vec3>(N::GET_PED_BONE_COORDS, p, 31086, 0.0f, 0.0f, 0.0f);
-        g_popups.push_back({ head, it->second - hp, Invoke<int>(N::IS_ENTITY_DEAD, p, 0) != 0, now });
+        if (cur.dead) {
+            Entity killer = Invoke<Entity>(N::GET_PED_SOURCE_OF_DEATH, p);
+            if (killer && (killer == player || killer == myVehicle))
+                g_popups.push_back({ lost > 0 ? lost : 0, true, now });
+        } else if (lost > 0 && attacking && Invoke<int>(N::HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY, p, player, 1)) {
+            g_popups.push_back({ lost, false, now });
+        }
     }
     g_lastHp.swap(hpNow);
 
-    // Numbers float upward and fade out.
+    g_popups.erase(std::remove_if(g_popups.begin(), g_popups.end(), [now](const Popup& p) {
+        return now < p.start || now - p.start > kPopupLifetimeMs;
+    }), g_popups.end());
+    if (g_popups.size() > kMaxPopups)
+        g_popups.erase(g_popups.begin(), g_popups.end() - kMaxPopups);
+
+    // Newest at the bottom; each one pops in slightly larger, then fades out in its second half.
+    constexpr float kLineH = 0.03f;
     char buf[32];
-    for (size_t i = 0; i < g_popups.size();) {
+    float y = g.damageY;
+    for (size_t i = g_popups.size(); i-- > 0;) {
         const Popup& pop = g_popups[i];
-        int age = now - pop.start;
-        if (age > kPopupLifetimeMs) {
-            g_popups.erase(g_popups.begin() + i);
-            continue;
-        }
-        float t = age / float(kPopupLifetimeMs);
-        float sx, sy;
-        if (WorldToScreen(pop.pos.x, pop.pos.y, pop.pos.z + 0.3f + t * 0.8f, sx, sy)) {
-            std::snprintf(buf, sizeof buf, pop.kill ? "-%d KILL" : "-%d", pop.amount);
-            // Fully opaque for the first half, then fade out.
-            float alpha = t < 0.5f ? 1.0f : 1.0f - (t - 0.5f) * 2.0f;
-            Text(sx, sy, buf, WithAlpha(pop.kill ? kDamageKill : kDamageHit, alpha), pop.kill ? 0.5f : 0.42f);
-        }
-        ++i;
+        float t = (now - pop.start) / float(kPopupLifetimeMs);
+        float alpha = t < 0.5f ? 1.0f : 1.0f - (t - 0.5f) * 2.0f;
+        float grow = t < 0.08f ? 1.0f + (0.08f - t) * 4.0f : 1.0f;
+        if (pop.kill && pop.amount > 0) std::snprintf(buf, sizeof buf, "-%d KILL", pop.amount);
+        else if (pop.kill)              std::snprintf(buf, sizeof buf, "KILL");
+        else                            std::snprintf(buf, sizeof buf, "-%d", pop.amount);
+        float scale = (pop.kill ? 0.5f : 0.42f) * grow;
+        Text(g.damageX, y, buf, WithAlpha(pop.kill ? kDamageKill : kDamageHit, alpha), scale, false);
+        y -= kLineH;
     }
 }
 
@@ -268,15 +286,24 @@ void TeleportToWaypoint() {
     for (float h : kProbeHeights) {
         Invoke(N::SET_ENTITY_COORDS_NO_OFFSET, e, dest.x, dest.y, h, 0, 0, 1);
         scriptWait(100);
-        float groundZ;
+        float groundZ, waterZ;
         if (Invoke<int>(N::GET_GROUND_Z_FOR_3D_COORD, dest.x, dest.y, h, &groundZ, 0)) {
-            Invoke(N::SET_ENTITY_COORDS_NO_OFFSET, e, dest.x, dest.y, groundZ + 1.0f, 0, 0, 1);
+            // Over water the ground probe finds the seabed, so land on the surface instead.
+            float z = groundZ;
+            if (Invoke<int>(N::GET_WATER_HEIGHT, dest.x, dest.y, h, &waterZ) && waterZ > groundZ)
+                z = waterZ;
+            Invoke(N::SET_ENTITY_COORDS_NO_OFFSET, e, dest.x, dest.y, z + 1.0f, 0, 0, 1);
             return;
         }
     }
 
-    // No ground found (e.g. open water): drop in from the sky with a parachute.
-    Invoke(N::SET_ENTITY_COORDS_NO_OFFSET, e, dest.x, dest.y, 1000.0f, 0, 0, 1);
+    // No ground found: drop in from the sky with a parachute. Out of the vehicle first, since a
+    // parachute can't be opened from a seat.
+    if (e != player) {
+        Invoke(N::CLEAR_PED_TASKS_IMMEDIATELY, player);
+        scriptWait(0);
+    }
+    Invoke(N::SET_ENTITY_COORDS_NO_OFFSET, player, dest.x, dest.y, 1000.0f, 0, 0, 1);
     Invoke(N::GIVE_DELAYED_WEAPON_TO_PED, player, Invoke<Hash>(N::GET_HASH_KEY, "GADGET_PARACHUTE"), 1, 0);
 }
 
@@ -329,61 +356,87 @@ void SpeedometerTick(Ped player) {
         s_best = 0.0f;
         Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, veh);
         s_make = FindVehicleMake(model);
-        const char* code = Invoke<const char*>(N::GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, model);
-        const char* name = code ? Invoke<const char*>(N::GET_FILENAME_FOR_AUDIO_CONVERSATION, code) : nullptr;
-        if (!name || !*name || !std::strcmp(name, "NULL")) name = code ? code : "";
-        std::snprintf(s_model, sizeof s_model, "%s", name);
+        std::snprintf(s_model, sizeof s_model, "%s", VehicleModelName(model));
         int cls = Invoke<int>(N::GET_VEHICLE_CLASS, veh);
         s_class = cls >= 0 && cls < static_cast<int>(std::size(kVehicleClasses)) ? kVehicleClasses[cls] : "";
     }
     if (speed > s_best) s_best = speed;
 
-    // Layout, all rows left-aligned except the stats:
-    //   Benefactor Panto, Compacts      make cyan, model white, class yellow
-    //   Mercedes-Benz                   real-life brand, green
-    //   123 km/h              top 180   speed big; stats small, right-aligned
-    //                        best 150
-    // SpeedoX/Y is the box's bottom-right corner, so longer names grow to the left.
-    constexpr float kNameScale = 0.24f, kRealScale = 0.22f, kSpeedScale = 0.38f, kStatScale = 0.21f;
-    constexpr float kRow = 0.017f, kStatRow = 0.0145f, kSpeedH = 0.029f;
-    constexpr float kPadX = 0.005f, kPadY = 0.003f, kSpeedGap = 0.012f;
-    constexpr Color kStatColor { 215, 215, 215, 240 };
+    // GTA timer-bar style, stacked upward from the bottom-right corner (SpeedoX / SpeedoY):
+    //   BENEFACTOR                 Panto     make (cyan) / model
+    //   Mercedes-Benz           Compacts     real-life brand (green) / class (yellow)
+    //   TOP 180                 BEST 150     stats, light grey
+    //   SPEED                  123 KM/H      big condensed number, orange at top speed
+    // Bars fade in from the left like the game's race and mission timers.
+    constexpr float kBarH = 0.03f, kSpeedBarH = 0.046f, kGap = 0.003f, kMinW = 0.17f, kPad = 0.008f;
+    constexpr float kLabelScale = 0.27f, kValueScale = 0.3f, kSpeedScale = 0.62f, kUnitScale = 0.27f;
+    constexpr int kFontCondensed = 4;
+    constexpr Color kLabel     { 225, 225, 225, 255 };
+    constexpr Color kStatColor { 200, 200, 200, 255 };
 
-    char name[160], speedBuf[24], topBuf[24], bestBuf[24];
-    const char* make = s_make ? s_make->make : "";
+    char make[48] = "", speedBuf[16], topBuf[24], bestBuf[24];
+    if (s_make) {
+        std::snprintf(make, sizeof make, "%s", s_make->make);
+        for (char* c = make; *c; ++c) *c = static_cast<char>(toupper(static_cast<unsigned char>(*c)));
+    }
     const char* real = s_make ? s_make->real : "";
-    std::snprintf(name, sizeof name, "%s%s%s%s%s", make, *make ? " " : "", s_model, *s_class ? ", " : "", s_class);
-    std::snprintf(speedBuf, sizeof speedBuf, "%.0f km/h", speed);
-    std::snprintf(topBuf, sizeof topBuf, "top %.0f", top);
-    std::snprintf(bestBuf, sizeof bestBuf, "best %.0f", s_best);
+    std::snprintf(speedBuf, sizeof speedBuf, "%.0f", speed);
+    std::snprintf(topBuf, sizeof topBuf, "TOP %.0f", top);
+    std::snprintf(bestBuf, sizeof bestBuf, "BEST %.0f", s_best);
+    const char* unit = " KM/H";
 
-    const float nameW = TextWidth(name, kNameScale);
-    const float realW = *real ? TextWidth(real, kRealScale) : 0.0f;
-    const float statW = (std::max)(TextWidth(topBuf, kStatScale), TextWidth(bestBuf, kStatScale));
-    const float speedW = TextWidth(speedBuf, kSpeedScale);
-    const float boxW = (std::max)({ nameW, realW, speedW + kSpeedGap + statW }) + 2 * kPadX;
+    // Wide enough for the longest row.
+    auto rowW = [&](const char* l, float ls, const char* r, float rs) {
+        return (*l ? TextWidth(l, ls) : 0.0f) + (*r ? TextWidth(r, rs) : 0.0f) + 3 * kPad;
+    };
+    const float speedValW = TextWidth(speedBuf, kSpeedScale, kFontCondensed) + TextWidth(unit, kUnitScale);
+    const float w = (std::max)({ kMinW, rowW(make, kLabelScale, s_model, kValueScale),
+                                 rowW(real, kLabelScale, s_class, kValueScale),
+                                 rowW(topBuf, kLabelScale, bestBuf, kLabelScale),
+                                 rowW("SPEED", kLabelScale, "", 0.0f) + speedValW });
+    const float right = g.speedoX, left = right - w;
 
-    const float right = g.speedoX, bottom = g.speedoY;
-    const float left = right - boxW;
-    const float speedY = bottom - kPadY - kSpeedH;
-    const float realY = speedY - (*real ? kRow : 0.0f);
-    const float nameY = realY - kRow;
-    const float boxTop = nameY - kPadY;
-    Rect(left + boxW / 2, (boxTop + bottom) / 2, boxW, bottom - boxTop, { 0, 0, 0, 120 });
+    auto bar = [&](float top, float h) {
+        // Transparent on the left, near-black on the right.
+        constexpr int kSlices = 8;
+        for (int i = 0; i < kSlices; ++i) {
+            float x0 = left + w * i / kSlices;
+            int alpha = 40 + 140 * (i + 1) / kSlices;
+            Rect(x0 + w / kSlices * 0.5f, top + h * 0.5f, w / kSlices + 0.0005f, h, { 0, 0, 0, alpha });
+        }
+    };
+    auto label = [&](float top, float h, const char* t, Color c) {
+        if (*t) Text(left + kPad, top + h * 0.5f - 0.011f, t, c, kLabelScale, false, 0, false);
+    };
+    auto value = [&](float top, float h, const char* t, Color c, float scale) {
+        if (*t) Text(right - kPad - TextWidth(t, scale), top + h * 0.5f - scale * 0.042f, t, c, scale, false, 0, false);
+    };
 
-    // The name is one string with normal spacing. Each coloured part is drawn at the offset where
-    // it starts in the full string: full width minus the width of the text from that part on.
-    const float tx = left + kPadX;
-    char modelPart[80];
-    std::snprintf(modelPart, sizeof modelPart, "%s%s", s_model, *s_class ? "," : "");
-    const char* fromModel = name + std::strlen(make) + (*make ? 1 : 0);
-    if (*make) Text(tx, nameY, make, kCyan, kNameScale, false);
-    Text(tx + nameW - TextWidth(fromModel, kNameScale), nameY, modelPart, kWhite, kNameScale, false);
-    if (*s_class) Text(tx + nameW - TextWidth(s_class, kNameScale), nameY, s_class, kYellow, kNameScale, false);
-    if (*real) Text(tx, realY, real, kGreen, kRealScale, false);
+    float y = g.speedoY - kSpeedBarH;
+    bar(y, kSpeedBarH);
+    label(y, kSpeedBarH, "SPEED", kLabel);
+    {
+        Color sc = top > 0.0f && speed >= top ? kOrange : kWhite;
+        float unitX = right - kPad - TextWidth(unit, kUnitScale);
+        Text(unitX, y + kSpeedBarH * 0.5f - 0.011f, unit, kLabel, kUnitScale, false, 0, false);
+        Text(unitX - TextWidth(speedBuf, kSpeedScale, kFontCondensed), y + 0.002f, speedBuf, sc,
+             kSpeedScale, false, kFontCondensed, false);
+    }
 
-    Text(tx, speedY, speedBuf, top > 0.0f && speed >= top ? kOrange : kWhite, kSpeedScale, false);
-    const float sx = right - kPadX;
-    Text(sx - TextWidth(topBuf, kStatScale), speedY + 0.001f, topBuf, kStatColor, kStatScale, false);
-    Text(sx - TextWidth(bestBuf, kStatScale), speedY + 0.001f + kStatRow, bestBuf, kStatColor, kStatScale, false);
+    y -= kGap + kBarH;
+    bar(y, kBarH);
+    label(y, kBarH, topBuf, kStatColor);
+    value(y, kBarH, bestBuf, kStatColor, kLabelScale);
+
+    if (*real || *s_class) {
+        y -= kGap + kBarH;
+        bar(y, kBarH);
+        label(y, kBarH, real, kGreen);
+        value(y, kBarH, s_class, kYellow, kValueScale);
+    }
+
+    y -= kGap + kBarH;
+    bar(y, kBarH);
+    label(y, kBarH, make, kCyan);
+    value(y, kBarH, s_model, kWhite, kValueScale);
 }

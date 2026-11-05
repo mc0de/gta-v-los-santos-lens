@@ -32,8 +32,8 @@ void OverlayLine(const Vec3& a, const Vec3& b, Color c);
 // font: 0 = Chalet (normal), 1 = House Script (GTA menu banner), 7 = Pricedown.
 void Text(float x, float y, const char* s, Color c, float scale = 0.26f, bool centre = true,
           int font = 0, bool outline = true);
-// Screen-fraction width of s when drawn by Text at this scale.
-float TextWidth(const char* s, float scale);
+// Screen-fraction width of s when drawn by Text at this scale and font.
+float TextWidth(const char* s, float scale, int font = 0);
 // Draws a sprite from a streamed texture dictionary; returns false while the dictionary is still loading.
 bool Sprite(const char* dict, const char* name, float x, float y, float w, float h, float rotation, Color c);
 void Notify(const char* s);

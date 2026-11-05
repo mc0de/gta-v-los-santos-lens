@@ -2,7 +2,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <iterator>
+#include <unordered_map>
 
 namespace {
 
@@ -141,12 +143,10 @@ void DrawTarget(const EspStyle& s, const Box2D& box, Color c, const Vec3& me, co
 }
 
 void DrawPeds(Ped player, const Vec3& me) {
-    static int peds[512];
-    int count = worldGetAllPeds(peds, 512);
     char label[64];
 
-    for (int i = 0; i < count; ++i) {
-        Ped p = peds[i];
+    for (int i = 0; i < g_pedCount; ++i) {
+        Ped p = g_peds[i];
         if (p == player) continue;
 
         bool dead = Invoke<int>(N::IS_ENTITY_DEAD, p, 0) != 0;
@@ -195,15 +195,18 @@ void DrawVehicles(Ped player, const Vec3& me) {
     static int vehs[512];
     int count = worldGetAllVehicles(vehs, 512);
     char label[128];
+    Vehicle mine = Invoke<int>(N::IS_PED_IN_ANY_VEHICLE, player, 0)
+                       ? Invoke<Vehicle>(N::GET_VEHICLE_PED_IS_USING, player) : 0;
 
     for (int i = 0; i < count; ++i) {
         Vehicle v = vehs[i];
+        if (v == mine) continue;
         bool wrecked = Invoke<int>(N::IS_ENTITY_DEAD, v, 0) != 0;
         if (wrecked && !g.showDead) continue;
 
         Vec3 pos = Invoke<Vec3>(N::GET_ENTITY_COORDS, v, 1);
         float dist = Distance(me, pos);
-        if (dist < 3.0f || dist > g.vehRange) continue; // skip the car we're sitting in
+        if (dist > g.vehRange) continue;
 
         Box2D box;
         if (!ScreenBox(v, box)) continue;
@@ -220,10 +223,8 @@ void DrawVehicles(Ped player, const Vec3& me) {
 
         label[0] = '\0';
         if (s.labels) {
-            const char* model = Invoke<const char*>(N::GET_DISPLAY_NAME_FROM_VEHICLE_MODEL,
-                                                    Invoke<Hash>(N::GET_ENTITY_MODEL, v));
-            const char* name = Invoke<const char*>(N::GET_FILENAME_FOR_AUDIO_CONVERSATION, model);
-            int len = std::snprintf(label, sizeof label, "%s", name ? name : "?");
+            const char* name = VehicleModelName(Invoke<Hash>(N::GET_ENTITY_MODEL, v));
+            int len = std::snprintf(label, sizeof label, "%s", *name ? name : "?");
             if (!wrecked && len > 0 && len < static_cast<int>(sizeof label)) {
                 Ped driver = Invoke<Ped>(N::GET_PED_IN_VEHICLE_SEAT, v, -1);
                 int lock = Invoke<int>(N::GET_VEHICLE_DOOR_LOCK_STATUS, v);
@@ -241,16 +242,13 @@ void DrawVehicles(Ped player, const Vec3& me) {
 
 // Arrows around the screen centre pointing at hostiles that are off-screen.
 void DrawThreatArrows(Ped player, const Vec3& me) {
-    static int peds[512];
-    int count = worldGetAllPeds(peds, 512);
-
     Vec3 camRot = Invoke<Vec3>(N::GET_GAMEPLAY_CAM_ROT, 2);
     const float ry = 0.32f;
     const float rx = ry / AspectRatio();
     const float size = 0.022f;
 
-    for (int i = 0; i < count; ++i) {
-        Ped p = peds[i];
+    for (int i = 0; i < g_pedCount; ++i) {
+        Ped p = g_peds[i];
         if (p == player || Invoke<int>(N::IS_ENTITY_DEAD, p, 0)) continue;
 
         Vec3 pos = Invoke<Vec3>(N::GET_ENTITY_COORDS, p, 1);
@@ -284,6 +282,55 @@ const char* WeaponLabelForModel(Hash model) {
     return nullptr;
 }
 
+const char* VehicleModelName(Hash model) {
+    const char* code = Invoke<const char*>(N::GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, model);
+    if (!code) return "";
+    const char* name = Invoke<const char*>(N::GET_FILENAME_FOR_AUDIO_CONVERSATION, code);
+    return name && *name && std::strcmp(name, "NULL") != 0 ? name : code;
+}
+
+int g_peds[512];
+int g_pedCount = 0;
+
+namespace {
+
+struct PedCache {
+    int threatFrame = -1;
+    bool threat = false;
+    int losTime = 0;
+    bool losValid = false;
+    bool los = false;
+};
+std::unordered_map<Ped, PedCache> g_pedCache;
+int g_frame = 0;
+int g_now = 0;
+int g_nextCachePrune = 0;
+
+} // namespace
+
+void BeginFrame() {
+    ++g_frame;
+    g_now = Invoke<int>(N::GET_GAME_TIMER);
+    g_pedCount = worldGetAllPeds(g_peds, 512);
+    // Peds come and go; dropping the whole cache now and then keeps it from growing.
+    if (g_now >= g_nextCachePrune || g_now < g_nextCachePrune - 10000) {
+        g_pedCache.clear();
+        g_nextCachePrune = g_now + 5000;
+    }
+}
+
+bool HasLineOfSight(Ped player, Ped p) {
+    constexpr int kLosTraceFlags = 1 | 2 | 16; // world geometry + vehicles + objects
+    constexpr int kLosCacheMs = 100;
+    PedCache& c = g_pedCache[p];
+    if (!c.losValid || g_now - c.losTime >= kLosCacheMs || g_now < c.losTime) {
+        c.los = Invoke<int>(N::HAS_ENTITY_CLEAR_LOS_TO_ENTITY, player, p, kLosTraceFlags) != 0;
+        c.losTime = g_now;
+        c.losValid = true;
+    }
+    return c.los;
+}
+
 bool IsLawEnforcement(Ped p) {
     switch (Invoke<int>(N::GET_PED_TYPE, p)) {
         case 6: case 27: case 29: return true; // cop, swat, army
@@ -291,13 +338,26 @@ bool IsLawEnforcement(Ped p) {
     }
 }
 
-bool IsThreat(Ped p, Ped player) {
+namespace {
+
+bool ComputeThreat(Ped p, Ped player) {
     if (Invoke<int>(N::IS_PED_IN_COMBAT, p, player)) return true;
     // Wild animals "hate" the player by default even while idle, so for animals only
     // actual combat counts.
     if (!Invoke<int>(N::IS_PED_HUMAN, p)) return false;
     int rel = Invoke<int>(N::GET_RELATIONSHIP_BETWEEN_PEDS, p, player);
     return rel == 4 || rel == 5; // dislike / hate
+}
+
+} // namespace
+
+bool IsThreat(Ped p, Ped player) {
+    PedCache& c = g_pedCache[p];
+    if (c.threatFrame != g_frame) {
+        c.threat = ComputeThreat(p, player);
+        c.threatFrame = g_frame;
+    }
+    return c.threat;
 }
 
 void EspTick(Ped player, const Vec3& me) {

@@ -49,6 +49,7 @@ void Tick() {
     if (Invoke<int>(N::IS_PAUSE_MENU_ACTIVE)) return;
 
     HandleHotkeys();
+    BeginFrame(); // after hotkeys: teleport waits a few frames
 
     Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
     Vec3 me = Invoke<Vec3>(N::GET_ENTITY_COORDS, player, 1);

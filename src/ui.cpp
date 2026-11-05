@@ -56,8 +56,8 @@ void Text(float x, float y, const char* s, Color c, float scale, bool centre, in
     Invoke(N::END_TEXT_COMMAND_DISPLAY_TEXT, x, y, 0);
 }
 
-float TextWidth(const char* s, float scale) {
-    Invoke(N::SET_TEXT_FONT, 0);
+float TextWidth(const char* s, float scale, int font) {
+    Invoke(N::SET_TEXT_FONT, font);
     Invoke(N::SET_TEXT_SCALE, 0.0f, scale);
     Invoke(N::BEGIN_TEXT_COMMAND_GET_WIDTH, "STRING");
     Invoke(N::ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME, s);

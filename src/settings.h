@@ -85,6 +85,8 @@ struct Settings {
     bool speedometer = true; // km/h readout while in a vehicle
     float speedoX = 0.86f;  // bottom-right corner of the speedometer box
     float speedoY = 0.985f;
+    float damageX = 0.53f;  // left edge / baseline of the newest damage number
+    float damageY = 0.47f;
     float statusX = 0.06f;
     float statusY = 0.002f;
 };

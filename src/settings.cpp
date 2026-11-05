@@ -73,10 +73,36 @@ int StringToKey(const char* s, int fallback) {
     return (end != s && v >= 0 && v <= 255) ? static_cast<int>(v) : fallback;
 }
 
+std::string Trim(const std::string& s) {
+    size_t b = s.find_first_not_of(" \t"), e = s.find_last_not_of(" \t");
+    return b == std::string::npos ? std::string() : s.substr(b, e - b + 1);
+}
+
+template <typename T>
+void Clamp(T& v, T lo, T hi) { v = v < lo ? lo : v > hi ? hi : v; }
+
+// Hand-edited values are kept within the ranges the menu allows.
+void ClampSettings() {
+    Clamp(g.pedRange, 25.0f, 1000.0f);
+    Clamp(g.vehRange, 25.0f, 1000.0f);
+    Clamp(g.finderRange, 50.0f, 2000.0f);
+    Clamp(g.letterCount, 1, 10);
+    Clamp(g.aimRange, 25.0f, 1000.0f);
+    Clamp(g.aimFov, 5, 180);
+    Clamp(g.aimSmoothing, 1, 20);
+    Clamp(g.skipHours, 1, 23);
+    Clamp(g.speedoX, 0.0f, 1.0f);
+    Clamp(g.speedoY, 0.0f, 1.0f);
+    Clamp(g.damageX, 0.0f, 1.0f);
+    Clamp(g.damageY, 0.0f, 1.0f);
+    Clamp(g.statusX, 0.0f, 1.0f);
+    Clamp(g.statusY, 0.0f, 1.0f);
+}
+
 std::string Read(const char* sec, const char* key) {
     char buf[256];
     GetPrivateProfileStringA(sec, key, "", buf, sizeof buf, g_path.c_str());
-    return buf;
+    return Trim(buf);
 }
 
 void ReadBool(const char* sec, const char* key, bool& v) {
@@ -186,7 +212,8 @@ void ReadModelList(const char* section, std::vector<Collectible>& out, const Col
     for (const char* p = buf.data(); p < buf.data() + len && *p; p += std::strlen(p) + 1) {
         const char* eq = std::strchr(p, '=');
         if (!eq || *p == ';' || *p == '#') continue;
-        out.push_back({ std::string(p, eq), std::string(eq + 1) });
+        std::string model = Trim(std::string(p, eq)), label = Trim(eq + 1);
+        if (!model.empty()) out.push_back({ model, label });
     }
 
     if (out.empty())
@@ -254,11 +281,14 @@ void ReloadSettings() {
     ReadBool("Misc", "Speedometer", g.speedometer);
     ReadFloat("Misc", "SpeedoX", g.speedoX);
     ReadFloat("Misc", "SpeedoY", g.speedoY);
+    ReadFloat("Misc", "DamageX", g.damageX);
+    ReadFloat("Misc", "DamageY", g.damageY);
     ReadFloat("Misc", "StatusX", g.statusX);
     ReadFloat("Misc", "StatusY", g.statusY);
 
     ReadModelList("Collectibles", g.collectibleModels, kDefaultCollectibles);
     ReadModelList("Pickups", g.pickupModels, kDefaultPickups);
+    ClampSettings();
 }
 
 void SaveSettings() {
@@ -305,6 +335,8 @@ void SaveSettings() {
     WriteBool("Misc", "Speedometer", g.speedometer);
     WriteFloat("Misc", "SpeedoX", g.speedoX);
     WriteFloat("Misc", "SpeedoY", g.speedoY);
+    WriteFloat("Misc", "DamageX", g.damageX);
+    WriteFloat("Misc", "DamageY", g.damageY);
     WriteFloat("Misc", "StatusX", g.statusX);
     WriteFloat("Misc", "StatusY", g.statusY);
 

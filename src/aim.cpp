@@ -98,13 +98,11 @@ bool Better(const Candidate& a, const Candidate& b) {
 
 // Best visible ped. Candidates are LOS-tested in order, since the raycast is the expensive part.
 Ped FindAimTarget(Ped player, const Vec3& me, const View& view) {
-    static int peds[512];
     static Candidate candidates[512];
-    int count = worldGetAllPeds(peds, 512);
     int n = 0;
 
-    for (int i = 0; i < count; ++i) {
-        if (IsAimCandidate(peds[i], player, me, view, candidates[n])) ++n;
+    for (int i = 0; i < g_pedCount; ++i) {
+        if (IsAimCandidate(g_peds[i], player, me, view, candidates[n])) ++n;
     }
     std::sort(candidates, candidates + n, Better);
 
@@ -126,7 +124,17 @@ float s_vehHeading = 0.0f, s_vehPitch = 0.0f;
 // measure the angle between the rendered camera (what's on screen, so the crosshair) and the
 // target, and add that error to the value we set last frame. Repeated each frame this settles
 // with the crosshair on the target whatever the offsets are.
+//
+// Two guards keep the accumulator from running away: steering only happens while the gameplay
+// camera is the one on screen (a cinematic or scripted camera ignores the setter, so the error
+// would never shrink), and each frame's correction is capped.
 void AimAtFromVehicle(Ped target, float t) {
+    if (!Invoke<int>(N::IS_GAMEPLAY_CAM_RENDERING)) {
+        s_vehAimActive = false;
+        return;
+    }
+    constexpr float kMaxStep = 30.0f; // degrees per frame
+
     Vec3 cam = Invoke<Vec3>(N::GET_FINAL_RENDERED_CAM_COORD);
     Vec3 rot = Invoke<Vec3>(N::GET_FINAL_RENDERED_CAM_ROT, 2);
     float heading, pitch;
@@ -137,8 +145,10 @@ void AimAtFromVehicle(Ped target, float t) {
         s_vehPitch = Invoke<float>(N::GET_GAMEPLAY_CAM_RELATIVE_PITCH);
         s_vehAimActive = true;
     }
-    s_vehHeading = WrapDegrees(s_vehHeading + WrapDegrees(heading - rot.z) * t);
-    s_vehPitch = (std::min)((std::max)(s_vehPitch + (pitch - rot.x) * t, -80.0f), 80.0f);
+    float dh = (std::clamp)(WrapDegrees(heading - rot.z) * t, -kMaxStep, kMaxStep);
+    float dp = (std::clamp)((pitch - rot.x) * t, -kMaxStep, kMaxStep);
+    s_vehHeading = WrapDegrees(s_vehHeading + dh);
+    s_vehPitch = (std::clamp)(s_vehPitch + dp, -80.0f, 80.0f);
 
     Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_HEADING, s_vehHeading);
     Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_PITCH, s_vehPitch, 1.0f);
@@ -180,10 +190,6 @@ bool HoldingThrowable(Ped player) {
 
 } // namespace
 
-bool HasLineOfSight(Ped player, Ped p) {
-    constexpr int kLosTraceFlags = 17; // world geometry + vehicles + objects
-    return Invoke<int>(N::HAS_ENTITY_CLEAR_LOS_TO_ENTITY, player, p, kLosTraceFlags) != 0;
-}
 
 // Holds the current target while it stays valid and visible; re-acquires otherwise.
 // In Nearest mode a peaceful lock is re-checked a few times a second, so a hostile takes over.
