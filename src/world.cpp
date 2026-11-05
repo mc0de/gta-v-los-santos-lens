@@ -294,9 +294,9 @@ namespace {
 
 // GET_VEHICLE_CLASS ids 0-22.
 const char* const kVehicleClasses[] = {
-    "Compact", "Sedan", "SUV", "Coupe", "Muscle", "Sports Classic", "Sports", "Super", "Motorcycle",
-    "Off-road", "Industrial", "Utility", "Van", "Cycle", "Boat", "Helicopter", "Plane", "Service",
-    "Emergency", "Military", "Commercial", "Train", "Open Wheel",
+    "Compacts", "Sedans", "SUVs", "Coupes", "Muscle", "Sports Classics", "Sports", "Super", "Motorcycles",
+    "Off-road", "Industrial", "Utility", "Vans", "Cycles", "Boats", "Helicopters", "Planes", "Service",
+    "Emergency", "Military", "Commercial", "Trains", "Open Wheel",
 };
 
 const VehicleMake* FindVehicleMake(Hash model) {
@@ -338,41 +338,52 @@ void SpeedometerTick(Ped player) {
     }
     if (speed > s_best) s_best = speed;
 
-    // Rows top to bottom: make (cyan) + model (white) + class (yellow), real-life brand, speed,
-    // top | best. SpeedoX/Y is the centre top of the speed row; the name rows sit above it.
-    constexpr float kNameScale = 0.24f, kRealScale = 0.21f, kSpeedScale = 0.38f, kStatScale = 0.21f;
-    constexpr float kRow = 0.017f, kGap = 0.004f, kPadX = 0.006f, kPadY = 0.003f;
-    const float x = g.speedoX, y = g.speedoY;
+    // Layout, all rows left-aligned except the stats:
+    //   Benefactor Panto, Compacts      make cyan, model white, class yellow
+    //   Mercedes-Benz                   real-life brand, green
+    //   123 km/h              top 180   speed big; stats small, right-aligned
+    //                        best 150
+    // SpeedoX/Y is the box's bottom-right corner, so longer names grow to the left.
+    constexpr float kNameScale = 0.24f, kRealScale = 0.22f, kSpeedScale = 0.38f, kStatScale = 0.21f;
+    constexpr float kRow = 0.017f, kStatRow = 0.0145f, kSpeedH = 0.029f;
+    constexpr float kPadX = 0.005f, kPadY = 0.003f, kSpeedGap = 0.012f;
+    constexpr Color kStatColor { 215, 215, 215, 240 };
 
-    char real[48] = "", stats[48], speedBuf[24];
-    if (s_make && *s_make->real) std::snprintf(real, sizeof real, "real: %s", s_make->real);
+    char name[160], speedBuf[24], topBuf[24], bestBuf[24];
+    const char* make = s_make ? s_make->make : "";
+    const char* real = s_make ? s_make->real : "";
+    std::snprintf(name, sizeof name, "%s%s%s%s%s", make, *make ? " " : "", s_model, *s_class ? ", " : "", s_class);
     std::snprintf(speedBuf, sizeof speedBuf, "%.0f km/h", speed);
-    std::snprintf(stats, sizeof stats, "top %.0f  |  best %.0f", top, s_best);
+    std::snprintf(topBuf, sizeof topBuf, "top %.0f", top);
+    std::snprintf(bestBuf, sizeof bestBuf, "best %.0f", s_best);
 
-    struct Part { const char* s; Color c; float w; };
-    Part name[3] = { { s_make ? s_make->make : "", kCyan, 0 }, { s_model, kWhite, 0 }, { s_class, kYellow, 0 } };
-    float nameW = 0.0f;
-    int parts = 0;
-    for (Part& p : name) {
-        if (!*p.s) continue;
-        p.w = TextWidth(p.s, kNameScale);
-        nameW += (parts++ ? kGap : 0.0f) + p.w;
-    }
+    const float nameW = TextWidth(name, kNameScale);
+    const float realW = *real ? TextWidth(real, kRealScale) : 0.0f;
+    const float statW = (std::max)(TextWidth(topBuf, kStatScale), TextWidth(bestBuf, kStatScale));
+    const float speedW = TextWidth(speedBuf, kSpeedScale);
+    const float boxW = (std::max)({ nameW, realW, speedW + kSpeedGap + statW }) + 2 * kPadX;
 
-    const float realY = y - (*real ? kRow : 0.0f);
+    const float right = g.speedoX, bottom = g.speedoY;
+    const float left = right - boxW;
+    const float speedY = bottom - kPadY - kSpeedH;
+    const float realY = speedY - (*real ? kRow : 0.0f);
     const float nameY = realY - kRow;
-    float boxW = std::max({ nameW, *real ? TextWidth(real, kRealScale) : 0.0f, TextWidth(speedBuf, kSpeedScale),
-                            TextWidth(stats, kStatScale) }) + 2 * kPadX;
-    const float top0 = nameY - kPadY, bottom = y + 0.044f + kPadY;
-    Rect(x, (top0 + bottom) / 2, boxW, bottom - top0, { 0, 0, 0, 120 });
+    const float boxTop = nameY - kPadY;
+    Rect(left + boxW / 2, (boxTop + bottom) / 2, boxW, bottom - boxTop, { 0, 0, 0, 120 });
 
-    float px = x - nameW / 2;
-    for (const Part& p : name) {
-        if (!*p.s) continue;
-        Text(px, nameY, p.s, p.c, kNameScale, false);
-        px += p.w + kGap;
-    }
-    if (*real) Text(x, realY, real, kGreen, kRealScale);
-    Text(x, y, speedBuf, top > 0.0f && speed >= top ? kOrange : kWhite, kSpeedScale);
-    Text(x, y + 0.027f, stats, kGrey, kStatScale);
+    // The name is one string with normal spacing. Each coloured part is drawn at the offset where
+    // it starts in the full string: full width minus the width of the text from that part on.
+    const float tx = left + kPadX;
+    char modelPart[80];
+    std::snprintf(modelPart, sizeof modelPart, "%s%s", s_model, *s_class ? "," : "");
+    const char* fromModel = name + std::strlen(make) + (*make ? 1 : 0);
+    if (*make) Text(tx, nameY, make, kCyan, kNameScale, false);
+    Text(tx + nameW - TextWidth(fromModel, kNameScale), nameY, modelPart, kWhite, kNameScale, false);
+    if (*s_class) Text(tx + nameW - TextWidth(s_class, kNameScale), nameY, s_class, kYellow, kNameScale, false);
+    if (*real) Text(tx, realY, real, kGreen, kRealScale, false);
+
+    Text(tx, speedY, speedBuf, top > 0.0f && speed >= top ? kOrange : kWhite, kSpeedScale, false);
+    const float sx = right - kPadX;
+    Text(sx - TextWidth(topBuf, kStatScale), speedY + 0.001f, topBuf, kStatColor, kStatScale, false);
+    Text(sx - TextWidth(bestBuf, kStatScale), speedY + 0.001f + kStatRow, bestBuf, kStatColor, kStatScale, false);
 }
