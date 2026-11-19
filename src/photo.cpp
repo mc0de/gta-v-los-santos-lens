@@ -163,6 +163,8 @@ bool DrawPhoto(const std::string& file, float x, float y, float w, float h) {
         it = cache.emplace(file, createTexture(path.c_str())).first;
     }
     if (it->second < 0) return false;
-    drawTexture(it->second, 0, 0, 100, w, h, 0.5f, 0.5f, x, y, 0.0f, AspectRatio(), 1.0f, 1.0f, 1.0f, 1.0f);
+    // sizeY is measured in screen widths here (seen in-game), so convert from a screen-height fraction.
+    const float aspect = AspectRatio();
+    drawTexture(it->second, 0, 0, 100, w, h / aspect, 0.5f, 0.5f, x, y, 0.0f, aspect, 1.0f, 1.0f, 1.0f, 1.0f);
     return true;
 }

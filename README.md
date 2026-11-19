@@ -66,10 +66,13 @@ Other options:
 ### Garage
 Save the car you're in and call it back later, wherever you are. Press **Numpad +** (or open **Garage** in the menu's Misc section).
 
-- **Save current car** (you must be in it) stores everything that makes the car yours: the model, every mod (engine, brakes, bodywork, wheels, custom tyres, turbo, xenon, tyre smoke), primary / secondary / pearlescent / wheel colours including custom RGB paint and paint type, extras, livery, window tint, neon lights and their colour, tyre smoke colour, plate text and style, and bulletproof tyres. Saving the car you called again updates its entry instead of adding a new one. Only road vehicles (cars, bikes, quads, bicycles) can be saved. Up to 40 cars.
+- **Save current car** (you must be in it) stores everything that makes the car yours: the model, every mod (engine, brakes, bodywork, wheels, custom tyres, turbo, xenon, tyre smoke), primary / secondary / pearlescent / wheel colours including custom RGB paint and paint type, extras, livery, window tint, neon lights and their colour, tyre smoke colour, plate text and style, and bulletproof tyres. Saving also takes a photo: the camera cuts to a 3/4 view of the car for a moment, with the HUD hidden. If the game isn't the active window, or the capture comes out black, the car is saved without one ("(no photo)"). Saving the car you called again updates its entry (and retakes its photo) instead of adding a new one. Only road vehicles (cars, bikes, quads, bicycles) can be saved. Up to 40 cars.
 - **Calling**: pick a car and press Enter. The menu closes and the car appears empty on the nearest road 30–60 m away, out of view where possible, facing along the road, unlocked, engine off and clean. If there's no free road spot nearby it appears right next to you; if there's no dry ground next to you either (say you're swimming), you get "No room for the car here" and keep your previous car. A purple car blip shows where it is; the blip hides while you're in the car and comes back when you get out.
 - **One car at a time**: calling another car removes the previous one if you're not in it and it's off screen. Otherwise the old car is left to the game, which keeps or despawns it like any other car. If the called car is destroyed you get a notification and the blip goes away.
-- **Deleting**: select a car and press X twice.
+- **Preview**: the selected car's photo and details (name, real-life brand, class, plate, favourite, whether it's out) appear in the menu's right-hand column, or to the right of the menu once more than 20 cars fill both columns. Cars saved before photos existed show "No photo yet": re-save the car to take one.
+- **Favourites**: press F on a car to mark it with `*`. Favourites are listed first; the rest keep the order you saved them in.
+- **Plate**: press P on a car to type a new plate in the game's on-screen keyboard (up to 8 characters, uppercase; Esc cancels). If that car is the one you called, its plate changes straight away too. Story Mode's Los Santos Customs only sells plate styles, not custom text.
+- **Deleting**: select a car and press X twice. Its photo is deleted too.
 - The rows show the plate on the right, and `(out)` on the car that's currently called.
 - **Not saved**: damage and dirt (called cars always arrive fixed and clean), and interior, dashboard and xenon colours, which the ScriptHookV SDK this is built with can't read.
 - Nothing goes through the game's cheat system.
@@ -88,7 +91,7 @@ Press **Delete** to open the menu. It's laid out in two columns (ESP and Finder 
 | Page Down | Switch aim point: head / body |
 | End | Teleport to waypoint |
 | Insert | Skip game time forward (6 hours by default) |
-| Numpad + | Open / close the garage |
+| Numpad + | Open / close the garage (on a car: Enter call, F favourite, P plate, X twice delete) |
 
 F5–F8 are left alone because the game uses them for character switching, and F1–F3 because they run the Rockstar Editor.
 
@@ -107,7 +110,7 @@ Created next to `SPESP.asi` with defaults on first run. Edit it while the game r
 
 ### Garage file (`SPESP_garage.ini`)
 
-Saved cars are kept in `SPESP_garage.ini` next to `SPESP.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file** straight away: saving or deleting a car in-game before reloading overwrites your edits. A car whose model the game doesn't know shows as `(invalid)` and can't be called.
+Saved cars are kept in `SPESP_garage.ini` next to `SPESP.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file** straight away: saving or deleting a car in-game before reloading overwrites your edits. A car whose model the game doesn't know shows as `(invalid)` and can't be called. `Favorite=1` marks a favourite, and `Photo=` names the car's photo in the `SPESP_garage\` folder next to the file (512×288 PNGs, deleted with the car).
 
 ## Building
 
@@ -151,7 +154,8 @@ To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI p
 | `src/esp.cpp` | Ped categories, ped / vehicle ESP, labels, threat arrows |
 | `src/aim.cpp` | Auto-aim target selection, line of sight, smoothing, aim zone |
 | `src/world.cpp` | Collectible / pickup finder, damage numbers, speedometer, teleport, skip time |
-| `src/garage.cpp` | Garage: saving a car's setup, `SPESP_garage.ini`, calling a car, its blip |
+| `src/garage.cpp` | Garage: saving a car's setup, `SPESP_garage.ini`, calling a car, its blip, favourites, plates |
+| `src/photo.*` | Garage photos: camera shot, window capture, PNG encoding, drawing them in the menu |
 | `src/vehicle_makes.h` | Generated table: vehicle model hash -> in-game make and real-life brand |
 | `src/menu.*` | In-game menu |
 | `src/main.cpp` | Plugin entry point, hotkeys, status line |

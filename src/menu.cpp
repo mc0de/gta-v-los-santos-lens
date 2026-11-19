@@ -346,7 +346,7 @@ constexpr float kTextScale = 0.24f, kSmallScale = 0.2f;
 constexpr float kTextDy = 0.002f;             // text baseline offset inside a row
 constexpr float kGridX = 0.085f;              // centre of the first grid column, from the column's left edge
 constexpr float kGridColW = 0.0245f;
-constexpr float kPanelW = 0.22f, kPanelGap = 0.01f; // garage preview panel, right of the menu
+constexpr float kPanelGap = 0.01f; // garage preview panel, when it can't use the menu's second column
 
 constexpr Color kBanner   {  30,  95, 175, 240 };
 constexpr Color kBarBg    {   0,   0,   0, 235 };
@@ -423,6 +423,35 @@ void DrawItem(const Item& it, float x, float y, bool selected) {
     }
 }
 
+// The garage preview panel, one menu column wide: the car's photo (or a hint), then its details.
+// Returns the panel's bottom edge.
+float DrawGaragePanel(const SavedCar& car, int index, float x, float top) {
+    const float w = kColW, photoH = w * AspectRatio() * 9.0f / 16.0f;
+    Rect(x + w * 0.5f, top + photoH * 0.5f, w, photoH, kBarBg);
+    if (!DrawPhoto(car.photo, x + w * 0.5f, top + photoH * 0.5f, w, photoH)) {
+        Text(x + w * 0.5f, top + photoH * 0.5f - 0.016f, "No photo yet", kDimText, kTextScale, true, 0, false);
+        Text(x + w * 0.5f, top + photoH * 0.5f + 0.002f, "Re-save the car to take one", kDimText, kSmallScale, true, 0, false);
+    }
+
+    float y = top + photoH;
+    auto row = [&](const char* left, Color lc, const char* right, Color rc) {
+        RowRect(x, y, w, kRowBg);
+        Label(x + kPad, y, left, lc);
+        if (right && *right) LabelRight(x + w - kPad, y, right, rc);
+        y += kRowH;
+    };
+    row(car.name.c_str(), kText, nullptr, kText);
+    const char* brand = car.valid ? VehicleRealBrand(car.model) : "";
+    int cls = car.valid ? Invoke<int>(N::GET_VEHICLE_CLASS_FROM_NAME, car.model) : -1;
+    const char* clsName = cls >= 0 && cls < kVehicleClassCount ? kVehicleClasses[cls] : "";
+    if (*brand || *clsName) row(brand, kGreen, clsName, kYellow);
+    row("Plate", kDimText, car.plate.c_str(), kText);
+    if (car.favorite || index == GarageCalledIndex())
+        row(car.favorite ? "* Favorite" : "", kYellow, index == GarageCalledIndex() ? "Out now" : "", kCyan);
+    if (!car.valid) row("Model not found in the game", kRed, nullptr, kText);
+    return y;
+}
+
 void Draw() {
     auto& items = Items();
     const float totalW = 2 * kColW + kColGap;
@@ -459,14 +488,17 @@ void Draw() {
         if (y > bottom) bottom = y;
     }
 
-    // Garage preview: the selected car's photo, to the right of the menu.
+    // Garage preview for the selected car: in the empty second column, or right of the menu once
+    // cars fill both columns.
     if (g_page == kGaragePage && Items()[Sel()].type == ItemType::Car) {
         const auto& cars = GarageCars();
         int idx = Items()[Sel()].index;
         if (idx >= 0 && idx < static_cast<int>(cars.size())) {
-            const float w = kPanelW, h = kPanelW * AspectRatio() * 9.0f / 16.0f;
-            const float px = kX + totalW + kPanelGap;
-            DrawPhoto(cars[idx].photo, px + w * 0.5f, y0 + h * 0.5f, w, h);
+            bool twoColumns = false;
+            for (const Item& it : items) twoColumns |= it.type == ItemType::ColumnBreak;
+            float px = twoColumns ? kX + totalW + kPanelGap : kX + kColW + kColGap;
+            float panelBottom = DrawGaragePanel(cars[idx], idx, px, y0);
+            if (!twoColumns && panelBottom > bottom) bottom = panelBottom;
         }
     }
 

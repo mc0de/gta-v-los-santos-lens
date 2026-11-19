@@ -83,6 +83,7 @@ namespace N {
     constexpr UINT64 GET_PED_IN_VEHICLE_SEAT               = 0xBB40DD2270B65366;
     constexpr UINT64 GET_VEHICLE_DOOR_LOCK_STATUS          = 0x25BC98A59C2EA962;
     constexpr UINT64 GET_VEHICLE_CLASS                     = 0x29439776AAA00A62;
+    constexpr UINT64 GET_VEHICLE_CLASS_FROM_NAME           = 0xDEDF1C8BD47C2200;
     constexpr UINT64 GET_VEHICLE_ESTIMATED_MAX_SPEED       = 0x53AF99BAA671CA47; // SDK: _GET_VEHICLE_SPEED; m/s, includes upgrades
 
     // garage: vehicle setup (read from a saved car, applied to the one we spawn)

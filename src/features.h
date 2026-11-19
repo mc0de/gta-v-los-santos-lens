@@ -31,6 +31,7 @@ const char* VehicleModelName(Hash model);
 struct VehicleMake;
 const VehicleMake* FindVehicleMake(Hash model);
 const char* VehicleMakeName(Hash model); // "" when unknown
+const char* VehicleRealBrand(Hash model); // real-life brand, "" when unknown
 
 // esp.cpp
 void EspTick(Ped player, const Vec3& me);

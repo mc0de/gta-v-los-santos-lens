@@ -341,6 +341,11 @@ const char* VehicleMakeName(Hash model) {
     return m ? m->make : "";
 }
 
+const char* VehicleRealBrand(Hash model) {
+    const VehicleMake* m = FindVehicleMake(model);
+    return m ? m->real : "";
+}
+
 void SpeedometerTick(Ped player) {
     // Best speed reached, kept per vehicle and reset when you get into a different one.
     static Vehicle s_vehicle = 0;
