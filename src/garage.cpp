@@ -3,6 +3,7 @@
 // car we spawn ourselves.
 
 #include "features.h"
+#include "photo.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -217,6 +218,7 @@ bool WriteGarage() {
         line("Plate", c.plate);
         num("PlateStyle", c.plateStyle);
         flag("BulletproofTyres", c.bulletproofTyres);
+        line("Photo", c.photo);
     }
     std::string path = GaragePath(), tmp = path + ".tmp";
     FILE* f = std::fopen(tmp.c_str(), "wb");
@@ -267,6 +269,7 @@ SavedCar ReadCar(const std::string& path, const char* sec) {
     if (c.plate.size() > kPlateMax) c.plate.resize(kPlateMax);
     num("PlateStyle", c.plateStyle);
     flag("BulletproofTyres", c.bulletproofTyres);
+    c.photo = get("Photo");
 
     c.valid = c.model != 0 && Invoke<int>(N::IS_MODEL_IN_CDIMAGE, c.model) && Invoke<int>(N::IS_MODEL_A_VEHICLE, c.model);
     if (c.name.empty()) {
@@ -308,19 +311,31 @@ bool GarageSaveCurrent() {
         return false;
     }
 
-    SavedCar car = Capture(v);
-    char msg[128];
     int called = GarageCalledIndex();
-    if (called >= 0 && called < static_cast<int>(g_cars.size()) && IsCalledCar(v)) {
+    bool update = called >= 0 && called < static_cast<int>(g_cars.size()) && IsCalledCar(v);
+    if (!update && static_cast<int>(g_cars.size()) >= kGarageMax) {
+        Notify("Garage is full (40 cars)");
+        return false;
+    }
+
+    SavedCar car = Capture(v);
+    char file[40];
+    std::snprintf(file, sizeof file, "car_%llX.png", static_cast<unsigned long long>(GetTickCount64()));
+    bool photo = TakeCarPhoto(v, file);
+    if (photo) car.photo = file;
+
+    char msg[160];
+    if (update) {
+        // A new photo replaces the old one; if it failed, the old one stays.
+        const std::string old = g_cars[called].photo;
+        if (photo && !old.empty()) DeleteFileA((PhotoDir() + old).c_str());
+        if (!photo) car.photo = old;
+        car.favorite = g_cars[called].favorite;
         g_cars[called] = car;
-        std::snprintf(msg, sizeof msg, "Updated %s", car.name.c_str());
+        std::snprintf(msg, sizeof msg, "Updated %s%s", car.name.c_str(), photo ? "" : " (no photo)");
     } else {
-        if (static_cast<int>(g_cars.size()) >= kGarageMax) {
-            Notify("Garage is full (40 cars)");
-            return false;
-        }
         g_cars.push_back(car);
-        std::snprintf(msg, sizeof msg, "Saved %s", car.name.c_str());
+        std::snprintf(msg, sizeof msg, "Saved %s%s", car.name.c_str(), photo ? "" : " (no photo)");
     }
     if (!WriteGarage()) {
         Notify("Couldn't write SPESP_garage.ini; the car is only kept until the game closes");
@@ -332,6 +347,7 @@ bool GarageSaveCurrent() {
 
 void GarageDelete(int index) {
     if (index < 0 || index >= static_cast<int>(g_cars.size())) return;
+    if (!g_cars[index].photo.empty()) DeleteFileA((PhotoDir() + g_cars[index].photo).c_str());
     g_cars.erase(g_cars.begin() + index);
     OnGarageEntryDeleted(index);
     if (!WriteGarage()) Notify("Couldn't write SPESP_garage.ini");

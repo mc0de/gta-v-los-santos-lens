@@ -15,9 +15,10 @@ add_library(gta_esp SHARED
     src/aim.cpp
     src/world.cpp
     src/garage.cpp
+    src/photo.cpp
     src/menu.cpp)
 target_include_directories(gta_esp PRIVATE "${SHV_SDK}/inc")
-target_link_libraries(gta_esp PRIVATE "${SHV_SDK}/lib/ScriptHookV.lib")
+target_link_libraries(gta_esp PRIVATE "${SHV_SDK}/lib/ScriptHookV.lib" windowscodecs ole32)
 target_compile_definitions(gta_esp PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 set_target_properties(gta_esp PROPERTIES
     OUTPUT_NAME "SPESP"

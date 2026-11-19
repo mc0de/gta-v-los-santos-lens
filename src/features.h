@@ -70,6 +70,8 @@ struct SavedCar {
     int plateStyle = -1;
     bool bulletproofTyres = false;
     bool valid = true;           // false when the game doesn't know the model (not saved to the file)
+    std::string photo;           // PNG file name in SPESP_garage\, empty = no photo
+    bool favorite = false;       // listed first in the garage
 
     SavedCar() { for (int& m : mods) m = -1; for (int& e : extras) e = -1; }
 };
@@ -77,7 +79,8 @@ struct SavedCar {
 constexpr int kGarageMax = 40;
 const std::vector<SavedCar>& GarageCars();
 void GarageLoad();                // reads SPESP_garage.ini
-bool GarageSaveCurrent();         // saves (or updates) the car the player is in; notifies
+bool GarageSaveCurrent();         // saves (or updates) the car the player is in and takes its photo;
+                                  // notifies. Calls scriptWait: run it deferred.
 void GarageDelete(int index);
 void GarageCall(int index);       // waits for the model to stream in: call from the deferred path only
 void GarageTick(Ped player);

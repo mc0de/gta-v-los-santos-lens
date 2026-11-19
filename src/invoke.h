@@ -161,6 +161,16 @@ namespace N {
     constexpr UINT64 IS_ANY_VEHICLE_NEAR_POINT             = 0x61E1DD6125A3EEE6;
     constexpr UINT64 IS_ENTITY_IN_WATER                    = 0xCFB0A0D8EDD145A3;
 
+    // garage: car photos (scripted camera)
+    constexpr UINT64 CREATE_CAM                            = 0xC3981DCE61D9E13F;
+    constexpr UINT64 SET_CAM_COORD                         = 0x4D41783FB745E42E;
+    constexpr UINT64 SET_CAM_FOV                           = 0xB13C14F66A00D047;
+    constexpr UINT64 POINT_CAM_AT_ENTITY                   = 0x5640BFF86B16E8DC;
+    constexpr UINT64 SET_CAM_ACTIVE                        = 0x026FB97D0A425F84;
+    constexpr UINT64 RENDER_SCRIPT_CAMS                    = 0x07E5B515DB0636FC;
+    constexpr UINT64 DESTROY_CAM                           = 0x865908C81A2C22E9;
+    constexpr UINT64 HIDE_HUD_AND_RADAR_THIS_FRAME         = 0x719FF505F097FD20;
+
     // camera
     constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;
     constexpr UINT64 GET_GAMEPLAY_CAM_ROT                  = 0x837765A25378F0BB;

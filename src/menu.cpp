@@ -1,5 +1,6 @@
 #include "menu.h"
 #include "features.h"
+#include "photo.h"
 #include <cstdio>
 #include <vector>
 
@@ -80,7 +81,8 @@ const char* const kPickLabels[]     = { "Crosshair", "Nearest" };
 
 void DoTeleport();
 void DoReload();
-void DoSaveCar() { GarageSaveCurrent(); }
+bool g_pendingSave = false; // saving waits for the photo camera, so it runs after the input pass
+void DoSaveCar() { g_pendingSave = true; }
 
 const char* GarageSummary() {
     static char buf[16];
@@ -329,6 +331,7 @@ constexpr float kTextScale = 0.24f, kSmallScale = 0.2f;
 constexpr float kTextDy = 0.002f;             // text baseline offset inside a row
 constexpr float kGridX = 0.085f;              // centre of the first grid column, from the column's left edge
 constexpr float kGridColW = 0.0245f;
+constexpr float kPanelW = 0.22f, kPanelGap = 0.01f; // garage preview panel, right of the menu
 
 constexpr Color kBanner   {  30,  95, 175, 240 };
 constexpr Color kBarBg    {   0,   0,   0, 235 };
@@ -441,6 +444,17 @@ void Draw() {
         if (y > bottom) bottom = y;
     }
 
+    // Garage preview: the selected car's photo, to the right of the menu.
+    if (g_page == kGaragePage && Items()[Sel()].type == ItemType::Car) {
+        const auto& cars = GarageCars();
+        int idx = Items()[Sel()].index;
+        if (idx >= 0 && idx < static_cast<int>(cars.size())) {
+            const float w = kPanelW, h = kPanelW * AspectRatio() * 9.0f / 16.0f;
+            const float px = kX + totalW + kPanelGap;
+            DrawPhoto(cars[idx].photo, px + w * 0.5f, y0 + h * 0.5f, w, h);
+        }
+    }
+
     // Help bar under the taller column.
     RowRect(kX, bottom, totalW, kBarBg);
     const char* help =
@@ -484,6 +498,10 @@ void MenuTick() {
         int index = g_pendingCall;
         g_pendingCall = -1;
         GarageCall(index);
+    }
+    if (g_pendingSave) {
+        g_pendingSave = false;
+        GarageSaveCurrent();
     }
     if (!g_open) return;
 
