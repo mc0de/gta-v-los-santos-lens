@@ -179,9 +179,10 @@ std::string ReadKey(const std::string& path, const char* sec, const char* key) {
     return b == std::string::npos ? std::string() : s.substr(b, e - b + 1);
 }
 
-// Writes the whole file at once (one WritePrivateProfileString per key would rewrite it ~1000 times).
-void WriteGarage() {
-    std::string out = "; SPESP garage. Edit only while the game is closed.\n";
+// Writes the whole file at once (one WritePrivateProfileString per key would rewrite it ~1000 times),
+// to a temp file first so a crash mid-write can't truncate the garage. Returns false on failure.
+bool WriteGarage() {
+    std::string out = "; SPESP garage. Edit while the game is closed, or reload settings in the menu right after editing.\n";
     char buf[64];
     for (size_t i = 0; i < g_cars.size(); ++i) {
         const SavedCar& c = g_cars[i];
@@ -217,10 +218,14 @@ void WriteGarage() {
         num("PlateStyle", c.plateStyle);
         flag("BulletproofTyres", c.bulletproofTyres);
     }
-    if (FILE* f = std::fopen(GaragePath().c_str(), "wb")) {
-        std::fwrite(out.data(), 1, out.size(), f);
-        std::fclose(f);
-    }
+    std::string path = GaragePath(), tmp = path + ".tmp";
+    FILE* f = std::fopen(tmp.c_str(), "wb");
+    if (!f) return false;
+    bool ok = std::fwrite(out.data(), 1, out.size(), f) == out.size();
+    ok = std::fclose(f) == 0 && ok;
+    if (ok) ok = MoveFileExA(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
+    if (!ok) DeleteFileA(tmp.c_str());
+    return ok;
 }
 
 SavedCar ReadCar(const std::string& path, const char* sec) {
@@ -263,9 +268,12 @@ SavedCar ReadCar(const std::string& path, const char* sec) {
     num("PlateStyle", c.plateStyle);
     flag("BulletproofTyres", c.bulletproofTyres);
 
-    bool valid = c.model != 0 && Invoke<int>(N::IS_MODEL_IN_CDIMAGE, c.model) && Invoke<int>(N::IS_MODEL_A_VEHICLE, c.model);
-    if (!valid) c.name = "(invalid) " + c.name;
-    else if (c.name.empty()) c.name = CarName(c.model);
+    c.valid = c.model != 0 && Invoke<int>(N::IS_MODEL_IN_CDIMAGE, c.model) && Invoke<int>(N::IS_MODEL_A_VEHICLE, c.model);
+    if (c.name.empty()) {
+        char buf[32];
+        std::snprintf(buf, sizeof buf, "0x%08X", static_cast<unsigned>(c.model));
+        c.name = c.valid ? CarName(c.model) : buf;
+    }
     return c;
 }
 
@@ -314,7 +322,10 @@ bool GarageSaveCurrent() {
         g_cars.push_back(car);
         std::snprintf(msg, sizeof msg, "Saved %s", car.name.c_str());
     }
-    WriteGarage();
+    if (!WriteGarage()) {
+        Notify("Couldn't write SPESP_garage.ini; the car is only kept until the game closes");
+        return true;
+    }
     Notify(msg);
     return true;
 }
@@ -323,7 +334,7 @@ void GarageDelete(int index) {
     if (index < 0 || index >= static_cast<int>(g_cars.size())) return;
     g_cars.erase(g_cars.begin() + index);
     OnGarageEntryDeleted(index);
-    WriteGarage();
+    if (!WriteGarage()) Notify("Couldn't write SPESP_garage.ini");
 }
 
 // ---- Calling a car ----
@@ -337,17 +348,35 @@ float Dist2D(const Vec3& a, const Vec3& b) {
     return std::sqrt(dx * dx + dy * dy);
 }
 
-// A road spot 30-60 m away, preferably out of view. Falls back to any road spot 10-120 m away,
-// then to 6 m in front of the player (returns false for that last case).
-bool FindSpawnSpot(Ped player, const Vec3& me, Vec3& pos, float& heading) {
+enum class Spot { Road, Beside, None };
+
+// Dry ground within 3 m of the player's height at this x/y (not off a roof edge, not in a hill).
+bool GroundNear(float x, float y, float playerZ, float& z) {
+    float groundZ = 0, waterZ = 0;
+    if (!Invoke<int>(N::GET_GROUND_Z_FOR_3D_COORD, x, y, playerZ + 50.0f, &groundZ, 0)) return false;
+    if (std::fabs(groundZ - playerZ) > 3.0f) return false;
+    if (Invoke<int>(N::GET_WATER_HEIGHT, x, y, playerZ + 50.0f, &waterZ) && waterZ > groundZ) return false;
+    z = groundZ + 0.5f;
+    return true;
+}
+
+// A free road spot 30-60 m away, preferably out of view. Falls back to any free road spot
+// 10-120 m away, then to dry ground beside the player. None when there's nowhere sensible
+// (e.g. you're swimming).
+Spot FindSpawnSpot(Ped player, const Vec3& me, Vec3& pos, float& heading) {
+    if (Invoke<int>(N::IS_ENTITY_IN_WATER, player)) return Spot::None;
+
     struct Node { Vec3 pos; float heading; float dist; bool visible; };
     std::vector<Node> nodes;
     for (int n = 1; n <= 60; ++n) {
         Vec3 p{};
         float h = 0;
         int lanes = 0;
-        if (!Invoke<int>(N::GET_NTH_CLOSEST_VEHICLE_NODE_WITH_HEADING, me.x, me.y, me.z, n, &p, &h, &lanes, 1, 3.0f, 0))
+        // Node flag 0: only switched-on roads, so not closed areas like the airport or the base.
+        if (!Invoke<int>(N::GET_NTH_CLOSEST_VEHICLE_NODE_WITH_HEADING, me.x, me.y, me.z, n, &p, &h, &lanes, 0, 3.0f, 0))
             continue;
+        if (Invoke<int>(N::IS_ANY_VEHICLE_NEAR_POINT, p.x, p.y, p.z, 3.0f)) continue; // don't land on traffic
+        p.z += 0.5f; // a little above the road, so the car isn't spawned into it
         nodes.push_back({ p, h, Dist2D(p, me), Invoke<int>(N::IS_SPHERE_VISIBLE, p.x, p.y, p.z, 3.0f) != 0 });
     }
     auto pick = [&](float lo, float hi, bool hiddenOnly) {
@@ -359,11 +388,20 @@ bool FindSpawnSpot(Ped player, const Vec3& me, Vec3& pos, float& heading) {
             }
         return false;
     };
-    if (pick(30, 60, true) || pick(30, 60, false) || pick(10, 120, false)) return true;
+    if (pick(30, 60, true) || pick(30, 60, false) || pick(10, 120, false)) return Spot::Road;
 
-    pos = Invoke<Vec3>(N::GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS, player, 0.0f, 6.0f, 0.0f);
-    heading = Invoke<float>(N::GET_ENTITY_HEADING, player);
-    return false;
+    // Beside the player: in front, to either side, behind.
+    static const float kOffsets[][2] = { { 0, 6 }, { 4, 0 }, { -4, 0 }, { 0, -6 } };
+    for (const auto& o : kOffsets) {
+        Vec3 p = Invoke<Vec3>(N::GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS, player, o[0], o[1], 0.0f);
+        float z = 0;
+        if (!GroundNear(p.x, p.y, me.z, z) || Invoke<int>(N::IS_ANY_VEHICLE_NEAR_POINT, p.x, p.y, z, 2.5f)) continue;
+        pos = p;
+        pos.z = z;
+        heading = Invoke<float>(N::GET_ENTITY_HEADING, player);
+        return Spot::Beside;
+    }
+    return Spot::None;
 }
 
 void RemoveBlip() {
@@ -381,10 +419,14 @@ void ReleaseCalled() {
     g_calledIndex = -1;
 }
 
-// The previous car goes away if nobody would notice: you're not in it and it's off screen.
+// The previous car goes away if nobody would notice: it's empty (no player, companion or thief
+// inside) and off screen. Otherwise it's handed back to the game.
 void RetirePrevious(Ped player) {
     if (g_called && Invoke<int>(N::DOES_ENTITY_EXIST, g_called) &&
-        !Invoke<int>(N::IS_PED_IN_VEHICLE, player, g_called, 0) && !Invoke<int>(N::IS_ENTITY_ON_SCREEN, g_called)) {
+        !Invoke<int>(N::IS_PED_IN_VEHICLE, player, g_called, 0) &&
+        Invoke<int>(N::IS_VEHICLE_SEAT_FREE, g_called, -1) &&
+        Invoke<int>(N::GET_VEHICLE_NUMBER_OF_PASSENGERS, g_called) == 0 &&
+        !Invoke<int>(N::IS_ENTITY_ON_SCREEN, g_called)) {
         RemoveBlip();
         Invoke(N::SET_ENTITY_AS_MISSION_ENTITY, g_called, 1, 1);
         Invoke(N::DELETE_VEHICLE, &g_called);
@@ -428,25 +470,31 @@ void GarageCall(int index) {
         scriptWait(0);
     }
 
+    // Everything that can fail happens before the previous car goes away, so a failed call keeps it.
     Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
-    RetirePrevious(player);
-
     Vec3 me = Invoke<Vec3>(N::GET_ENTITY_COORDS, player, 1);
     Vec3 pos{};
     float heading = 0;
-    bool onRoad = FindSpawnSpot(player, me, pos, heading);
+    Spot spot = FindSpawnSpot(player, me, pos, heading);
+    if (spot == Spot::None) {
+        Invoke(N::SET_MODEL_AS_NO_LONGER_NEEDED, car.model);
+        Notify("No room for the car here");
+        return;
+    }
 
-    Vehicle v = Invoke<Vehicle>(N::CREATE_VEHICLE, car.model, pos.x, pos.y, pos.z, heading, 0, 1);
+    // The 8th argument (newer builds read one) is pushed as 0 so it's never stale.
+    Vehicle v = Invoke<Vehicle>(N::CREATE_VEHICLE, car.model, pos.x, pos.y, pos.z, heading, 0, 1, 0);
     Invoke(N::SET_MODEL_AS_NO_LONGER_NEEDED, car.model);
     if (!v) {
         Notify(msg);
         return;
     }
+    RetirePrevious(player);
     Invoke<int>(N::SET_VEHICLE_ON_GROUND_PROPERLY, v);
     ApplySavedCar(v, car);
     Invoke(N::SET_VEHICLE_DIRT_LEVEL, v, 0.0f);
     Invoke(N::SET_VEHICLE_DOORS_LOCKED, v, 1);
-    Invoke(N::SET_VEHICLE_ENGINE_ON, v, 0, 1, 1);
+    Invoke(N::SET_VEHICLE_ENGINE_ON, v, 0, 1, 0); // last arg 0: the engine still starts when you get in
     Invoke(N::SET_VEHICLE_HAS_BEEN_OWNED_BY_PLAYER, v, 1);
     Invoke(N::SET_VEHICLE_NEEDS_TO_BE_HOTWIRED, v, 0);
     Invoke(N::SET_VEHICLE_IS_STOLEN, v, 0);
@@ -455,7 +503,7 @@ void GarageCall(int index) {
     g_calledIndex = index;
     AddCarBlip(v, car.name);
 
-    std::snprintf(msg, sizeof msg, onRoad ? "%s is waiting nearby" : "%s is next to you", car.name.c_str());
+    std::snprintf(msg, sizeof msg, spot == Spot::Road ? "%s is waiting nearby" : "%s is next to you", car.name.c_str());
     Notify(msg);
 }
 

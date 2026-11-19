@@ -67,7 +67,7 @@ Other options:
 Save the car you're in and call it back later, wherever you are. Press **Numpad +** (or open **Garage** in the menu's Misc section).
 
 - **Save current car** (you must be in it) stores everything that makes the car yours: the model, every mod (engine, brakes, bodywork, wheels, custom tyres, turbo, xenon, tyre smoke), primary / secondary / pearlescent / wheel colours including custom RGB paint and paint type, extras, livery, window tint, neon lights and their colour, tyre smoke colour, plate text and style, and bulletproof tyres. Saving the car you called again updates its entry instead of adding a new one. Only road vehicles (cars, bikes, quads, bicycles) can be saved. Up to 40 cars.
-- **Calling**: pick a car and press Enter. The menu closes and the car appears empty on the nearest road 30–60 m away, out of view where possible, facing along the road, unlocked, engine off and clean. If there's no road nearby it appears right next to you. A purple car blip shows where it is; the blip hides while you're in the car and comes back when you get out.
+- **Calling**: pick a car and press Enter. The menu closes and the car appears empty on the nearest road 30–60 m away, out of view where possible, facing along the road, unlocked, engine off and clean. If there's no free road spot nearby it appears right next to you; if there's no dry ground next to you either (say you're swimming), you get "No room for the car here" and keep your previous car. A purple car blip shows where it is; the blip hides while you're in the car and comes back when you get out.
 - **One car at a time**: calling another car removes the previous one if you're not in it and it's off screen. Otherwise the old car is left to the game, which keeps or despawns it like any other car. If the called car is destroyed you get a notification and the blip goes away.
 - **Deleting**: select a car and press X twice.
 - The rows show the plate on the right, and `(out)` on the car that's currently called.
@@ -107,7 +107,7 @@ Created next to `SPESP.asi` with defaults on first run. Edit it while the game r
 
 ### Garage file (`SPESP_garage.ini`)
 
-Saved cars are kept in `SPESP_garage.ini` next to `SPESP.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file**. A car whose model the game doesn't know shows as `(invalid)` and can't be called.
+Saved cars are kept in `SPESP_garage.ini` next to `SPESP.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file** straight away: saving or deleting a car in-game before reloading overwrites your edits. A car whose model the game doesn't know shows as `(invalid)` and can't be called.
 
 ## Building
 

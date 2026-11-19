@@ -69,6 +69,7 @@ struct SavedCar {
     std::string plate;           // empty = leave as spawned
     int plateStyle = -1;
     bool bulletproofTyres = false;
+    bool valid = true;           // false when the game doesn't know the model (not saved to the file)
 
     SavedCar() { for (int& m : mods) m = -1; for (int& e : extras) e = -1; }
 };

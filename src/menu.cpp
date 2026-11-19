@@ -296,6 +296,10 @@ void FormatValue(const Item& it, bool selected, char* buf, size_t n) {
             }
             const auto& cars = GarageCars();
             const char* plate = it.index < static_cast<int>(cars.size()) ? cars[it.index].plate.c_str() : "";
+            if (it.index < static_cast<int>(cars.size()) && !cars[it.index].valid) {
+                std::snprintf(buf, n, "(invalid)");
+                return;
+            }
             std::snprintf(buf, n, "%s%s", plate, it.index == GarageCalledIndex() ? "  (out)" : "");
             return;
         }

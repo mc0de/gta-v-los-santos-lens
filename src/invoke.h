@@ -156,6 +156,10 @@ namespace N {
     constexpr UINT64 SET_VEHICLE_IS_STOLEN                 = 0x67B2C79AA7FF5738;
     constexpr UINT64 IS_VEHICLE_DRIVEABLE                  = 0x4C241E39B23DF959;
     constexpr UINT64 IS_PED_IN_VEHICLE                     = 0xA3EE4A07279BB9DB;
+    constexpr UINT64 IS_VEHICLE_SEAT_FREE                  = 0x22AC59A870E6A669;
+    constexpr UINT64 GET_VEHICLE_NUMBER_OF_PASSENGERS      = 0x24CB2137731FFE89;
+    constexpr UINT64 IS_ANY_VEHICLE_NEAR_POINT             = 0x61E1DD6125A3EEE6;
+    constexpr UINT64 IS_ENTITY_IN_WATER                    = 0xCFB0A0D8EDD145A3;
 
     // camera
     constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;
