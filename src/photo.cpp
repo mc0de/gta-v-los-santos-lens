@@ -76,15 +76,15 @@ bool IsBlack(const std::vector<BYTE>& px) {
 }
 
 bool WritePng(const std::string& path, std::vector<BYTE>& px) {
-    static bool comInit = false;
-    if (!comInit) {
-        HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-        comInit = SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE;
-        if (!comInit) return false;
-    }
+    // COM is initialised just for this call and released again, so the game's thread is left
+    // as we found it. RPC_E_CHANGED_MODE means it's already initialised another way: use that.
+    HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(com) && com != RPC_E_CHANGED_MODE) return false;
     for (size_t i = 3; i < px.size(); i += 4) px[i] = 255; // GDI leaves alpha undefined
 
-    std::wstring wpath(path.begin(), path.end());
+    // The path is ANSI (GetModuleFileNameA); widen it with the same code page.
+    std::wstring wpath(MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, nullptr, 0), L'\0');
+    if (!wpath.empty()) MultiByteToWideChar(CP_ACP, 0, path.c_str(), -1, &wpath[0], static_cast<int>(wpath.size()));
     IWICImagingFactory* factory = nullptr;
     IWICStream* stream = nullptr;
     IWICBitmapEncoder* encoder = nullptr;
@@ -108,6 +108,7 @@ bool WritePng(const std::string& path, std::vector<BYTE>& px) {
     if (encoder) encoder->Release();
     if (stream) stream->Release();
     if (factory) factory->Release();
+    if (SUCCEEDED(com)) CoUninitialize();
     if (!ok) DeleteFileA(path.c_str());
     return ok;
 }

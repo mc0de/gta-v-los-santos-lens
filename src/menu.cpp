@@ -529,12 +529,22 @@ void EditPlate(int index) {
     std::string current = cars[index].plate;
     Invoke(N::DISPLAY_ONSCREEN_KEYBOARD, 0, "FMMC_KEY_TIP8", "", current.c_str(), "", "", "", 8);
     int status = 0;
-    while ((status = Invoke<int>(N::UPDATE_ONSCREEN_KEYBOARD)) == 0) scriptWait(0);
-    // Let go of the key that closed the keyboard, or the menu would see it as a fresh press.
-    while (AnyKeyHeld({ VK_RETURN, VK_ESCAPE, VK_BACK })) scriptWait(0);
+    while ((status = Invoke<int>(N::UPDATE_ONSCREEN_KEYBOARD)) == 0) {
+        BlockGameInput();
+        scriptWait(0);
+    }
+    std::string result;
+    if (status == 1) {
+        const char* r = Invoke<const char*>(N::GET_ONSCREEN_KEYBOARD_RESULT);
+        if (r) result = r;
+    }
+    // Let go of the key that closed the keyboard, or the menu (or the pause menu) would see it.
+    while (AnyKeyHeld({ VK_RETURN, VK_ESCAPE, VK_BACK })) {
+        BlockGameInput();
+        scriptWait(0);
+    }
     if (status != 1) return;
-    const char* result = Invoke<const char*>(N::GET_ONSCREEN_KEYBOARD_RESULT);
-    if (result && GarageSetPlate(index, result)) {
+    if (GarageSetPlate(index, result)) {
         char msg[48];
         std::snprintf(msg, sizeof msg, "Plate set to %s", GarageCars()[index].plate.c_str());
         Notify(msg);

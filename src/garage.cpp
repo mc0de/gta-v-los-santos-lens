@@ -272,6 +272,9 @@ SavedCar ReadCar(const std::string& path, const char* sec) {
     num("PlateStyle", c.plateStyle);
     flag("BulletproofTyres", c.bulletproofTyres);
     c.photo = get("Photo");
+    // Only a plain file name inside SPESP_garage\ (deleting the car deletes it).
+    if (c.photo.find_first_of("\\/:") != std::string::npos || c.photo.find("..") != std::string::npos)
+        c.photo.clear();
     flag("Favorite", c.favorite);
 
     c.valid = c.model != 0 && Invoke<int>(N::IS_MODEL_IN_CDIMAGE, c.model) && Invoke<int>(N::IS_MODEL_A_VEHICLE, c.model);
@@ -328,11 +331,12 @@ bool GarageSaveCurrent() {
     if (photo) car.photo = file;
 
     char msg[160];
+    std::string staleFile; // old photo, deleted once the garage file no longer names it
     if (update) {
         // A new photo replaces the old one; if it failed, the old one stays.
         const std::string old = g_cars[called].photo;
-        if (photo && !old.empty()) DeleteFileA((PhotoDir() + old).c_str());
-        if (!photo) car.photo = old;
+        if (photo) staleFile = old;
+        else       car.photo = old;
         car.favorite = g_cars[called].favorite;
         g_cars[called] = car;
         std::snprintf(msg, sizeof msg, "Updated %s%s", car.name.c_str(), photo ? "" : " (no photo)");
@@ -344,16 +348,21 @@ bool GarageSaveCurrent() {
         Notify("Couldn't write SPESP_garage.ini; the car is only kept until the game closes");
         return true;
     }
+    if (!staleFile.empty()) DeleteFileA((PhotoDir() + staleFile).c_str());
     Notify(msg);
     return true;
 }
 
 void GarageDelete(int index) {
     if (index < 0 || index >= static_cast<int>(g_cars.size())) return;
-    if (!g_cars[index].photo.empty()) DeleteFileA((PhotoDir() + g_cars[index].photo).c_str());
+    const std::string photo = g_cars[index].photo;
     g_cars.erase(g_cars.begin() + index);
     OnGarageEntryDeleted(index);
-    if (!WriteGarage()) Notify("Couldn't write SPESP_garage.ini");
+    if (!WriteGarage()) {
+        Notify("Couldn't write SPESP_garage.ini");
+        return; // keep the photo: the file on disk still names it
+    }
+    if (!photo.empty()) DeleteFileA((PhotoDir() + photo).c_str());
 }
 
 // ---- Calling a car ----
