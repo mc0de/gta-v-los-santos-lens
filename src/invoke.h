@@ -136,6 +136,27 @@ namespace N {
     constexpr UINT64 IS_MODEL_IN_CDIMAGE                   = 0x35B9E0803292B641;
     constexpr UINT64 IS_MODEL_A_VEHICLE                    = 0x19AAC8F07BFEC53E;
 
+    // garage: calling a saved car
+    constexpr UINT64 REQUEST_MODEL                         = 0x963D27A58DF860AC;
+    constexpr UINT64 HAS_MODEL_LOADED                      = 0x98A4EB5D89A0C952;
+    constexpr UINT64 SET_MODEL_AS_NO_LONGER_NEEDED         = 0xE532F5D78798DAAB;
+    constexpr UINT64 CREATE_VEHICLE                        = 0xAF35D0D2583051B0;
+    constexpr UINT64 SET_VEHICLE_ON_GROUND_PROPERLY        = 0x49733E92263139D1;
+    constexpr UINT64 GET_NTH_CLOSEST_VEHICLE_NODE_WITH_HEADING = 0x80CA6A8B6C094CC4;
+    constexpr UINT64 IS_SPHERE_VISIBLE                     = 0xE33D59DA70B58FDF;
+    constexpr UINT64 IS_ENTITY_ON_SCREEN                   = 0xE659E47AF827484B;
+    constexpr UINT64 SET_ENTITY_AS_MISSION_ENTITY          = 0xAD738C3085FE7E11;
+    constexpr UINT64 SET_VEHICLE_AS_NO_LONGER_NEEDED       = 0x629BFA74418D6239;
+    constexpr UINT64 DELETE_VEHICLE                        = 0xEA386986E786A54F;
+    constexpr UINT64 SET_VEHICLE_DOORS_LOCKED              = 0xB664292EAECF7FA6; // 1 = unlocked
+    constexpr UINT64 SET_VEHICLE_ENGINE_ON                 = 0x2497C4717C8B881E;
+    constexpr UINT64 SET_VEHICLE_DIRT_LEVEL                = 0x79D3B596FE44EE8B;
+    constexpr UINT64 SET_VEHICLE_HAS_BEEN_OWNED_BY_PLAYER  = 0x2B5F9D2AF1F1722D;
+    constexpr UINT64 SET_VEHICLE_NEEDS_TO_BE_HOTWIRED      = 0xFBA550EA44404EE6;
+    constexpr UINT64 SET_VEHICLE_IS_STOLEN                 = 0x67B2C79AA7FF5738;
+    constexpr UINT64 IS_VEHICLE_DRIVEABLE                  = 0x4C241E39B23DF959;
+    constexpr UINT64 IS_PED_IN_VEHICLE                     = 0xA3EE4A07279BB9DB;
+
     // camera
     constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;
     constexpr UINT64 GET_GAMEPLAY_CAM_ROT                  = 0x837765A25378F0BB;
@@ -164,6 +185,13 @@ namespace N {
     constexpr UINT64 GET_BLIP_INFO_ID_TYPE                 = 0xBE9B0959FFD0779B;
     constexpr UINT64 GET_BLIP_INFO_ID_COORD                = 0xFA7C7F0AADF25D09;
     constexpr UINT64 DOES_BLIP_EXIST                       = 0xA6DB27D19ECBB7DA;
+    constexpr UINT64 ADD_BLIP_FOR_ENTITY                   = 0x5CDE92C702A8FCE7;
+    constexpr UINT64 SET_BLIP_SPRITE                       = 0xDF735600A4696DAF;
+    constexpr UINT64 SET_BLIP_COLOUR                       = 0x03D7FB09E75D6B7E;
+    constexpr UINT64 SET_BLIP_DISPLAY                      = 0x9029B2F3DA924928; // 0 = hidden, 2 = map + radar
+    constexpr UINT64 REMOVE_BLIP                           = 0x86A652570E5F25DD;
+    constexpr UINT64 BEGIN_TEXT_COMMAND_SET_BLIP_NAME      = 0xF9113A30DE5C6670;
+    constexpr UINT64 END_TEXT_COMMAND_SET_BLIP_NAME        = 0xBC38B49BCB83BC9B;
 
     // drawing
     constexpr UINT64 GET_SCREEN_COORD_FROM_WORLD_COORD     = 0x34E82F05DF2974F5;

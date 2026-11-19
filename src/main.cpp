@@ -67,6 +67,7 @@ void Tick() {
     LettersTick(me);
     DamageNumbersTick(player);
     SpeedometerTick(player);
+    GarageTick(player);
 
     MenuTick();
     DrawStatus();

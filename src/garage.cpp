@@ -3,6 +3,7 @@
 // car we spawn ourselves.
 
 #include "features.h"
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -276,6 +277,7 @@ int GarageCalledIndex() { return g_calledIndex; }
 void GarageLoad() {
     std::string path = GaragePath();
     g_cars.clear();
+    g_calledIndex = -1; // the file may have been edited, so entry numbers can't be trusted
     std::vector<char> names(16 * 1024);
     DWORD len = GetPrivateProfileSectionNamesA(names.data(), static_cast<DWORD>(names.size()), path.c_str());
     // Section names come back as "Car1\0Car2\0\0", in file order.
@@ -322,4 +324,161 @@ void GarageDelete(int index) {
     g_cars.erase(g_cars.begin() + index);
     OnGarageEntryDeleted(index);
     WriteGarage();
+}
+
+// ---- Calling a car ----
+
+namespace {
+
+int g_blipShown = -1; // last SET_BLIP_DISPLAY state, so it's only set on change
+
+float Dist2D(const Vec3& a, const Vec3& b) {
+    float dx = a.x - b.x, dy = a.y - b.y;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+// A road spot 30-60 m away, preferably out of view. Falls back to any road spot 10-120 m away,
+// then to 6 m in front of the player (returns false for that last case).
+bool FindSpawnSpot(Ped player, const Vec3& me, Vec3& pos, float& heading) {
+    struct Node { Vec3 pos; float heading; float dist; bool visible; };
+    std::vector<Node> nodes;
+    for (int n = 1; n <= 60; ++n) {
+        Vec3 p{};
+        float h = 0;
+        int lanes = 0;
+        if (!Invoke<int>(N::GET_NTH_CLOSEST_VEHICLE_NODE_WITH_HEADING, me.x, me.y, me.z, n, &p, &h, &lanes, 1, 3.0f, 0))
+            continue;
+        nodes.push_back({ p, h, Dist2D(p, me), Invoke<int>(N::IS_SPHERE_VISIBLE, p.x, p.y, p.z, 3.0f) != 0 });
+    }
+    auto pick = [&](float lo, float hi, bool hiddenOnly) {
+        for (const Node& nd : nodes)
+            if (nd.dist >= lo && nd.dist <= hi && (!hiddenOnly || !nd.visible)) {
+                pos = nd.pos;
+                heading = nd.heading;
+                return true;
+            }
+        return false;
+    };
+    if (pick(30, 60, true) || pick(30, 60, false) || pick(10, 120, false)) return true;
+
+    pos = Invoke<Vec3>(N::GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS, player, 0.0f, 6.0f, 0.0f);
+    heading = Invoke<float>(N::GET_ENTITY_HEADING, player);
+    return false;
+}
+
+void RemoveBlip() {
+    if (g_blip && Invoke<int>(N::DOES_BLIP_EXIST, g_blip)) Invoke(N::REMOVE_BLIP, &g_blip);
+    g_blip = 0;
+    g_blipShown = -1;
+}
+
+// Hands the called car back to the game, which keeps or despawns it like any other car.
+void ReleaseCalled() {
+    RemoveBlip();
+    if (g_called && Invoke<int>(N::DOES_ENTITY_EXIST, g_called))
+        Invoke(N::SET_VEHICLE_AS_NO_LONGER_NEEDED, &g_called);
+    g_called = 0;
+    g_calledIndex = -1;
+}
+
+// The previous car goes away if nobody would notice: you're not in it and it's off screen.
+void RetirePrevious(Ped player) {
+    if (g_called && Invoke<int>(N::DOES_ENTITY_EXIST, g_called) &&
+        !Invoke<int>(N::IS_PED_IN_VEHICLE, player, g_called, 0) && !Invoke<int>(N::IS_ENTITY_ON_SCREEN, g_called)) {
+        RemoveBlip();
+        Invoke(N::SET_ENTITY_AS_MISSION_ENTITY, g_called, 1, 1);
+        Invoke(N::DELETE_VEHICLE, &g_called);
+        g_called = 0;
+        g_calledIndex = -1;
+        return;
+    }
+    ReleaseCalled();
+}
+
+void AddCarBlip(Vehicle v, const std::string& name) {
+    g_blip = Invoke<Blip>(N::ADD_BLIP_FOR_ENTITY, v);
+    Invoke(N::SET_BLIP_SPRITE, g_blip, g.garageBlipSprite);
+    Invoke(N::SET_BLIP_COLOUR, g_blip, g.garageBlipColour);
+    Invoke(N::BEGIN_TEXT_COMMAND_SET_BLIP_NAME, "STRING");
+    Invoke(N::ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME, name.c_str());
+    Invoke(N::END_TEXT_COMMAND_SET_BLIP_NAME, g_blip);
+    g_blipShown = -1;
+}
+
+} // namespace
+
+void GarageCall(int index) {
+    if (index < 0 || index >= static_cast<int>(g_cars.size())) return;
+    const SavedCar car = g_cars[index];
+    char msg[128];
+    std::snprintf(msg, sizeof msg, "Can't load %s", car.name.c_str());
+
+    if (car.model == 0 || !Invoke<int>(N::IS_MODEL_IN_CDIMAGE, car.model) || !Invoke<int>(N::IS_MODEL_A_VEHICLE, car.model)) {
+        Notify(msg);
+        return;
+    }
+    Invoke(N::REQUEST_MODEL, car.model);
+    int deadline = Invoke<int>(N::GET_GAME_TIMER) + 5000;
+    while (!Invoke<int>(N::HAS_MODEL_LOADED, car.model)) {
+        if (Invoke<int>(N::GET_GAME_TIMER) > deadline) {
+            Invoke(N::SET_MODEL_AS_NO_LONGER_NEEDED, car.model);
+            Notify(msg);
+            return;
+        }
+        scriptWait(0);
+    }
+
+    Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
+    RetirePrevious(player);
+
+    Vec3 me = Invoke<Vec3>(N::GET_ENTITY_COORDS, player, 1);
+    Vec3 pos{};
+    float heading = 0;
+    bool onRoad = FindSpawnSpot(player, me, pos, heading);
+
+    Vehicle v = Invoke<Vehicle>(N::CREATE_VEHICLE, car.model, pos.x, pos.y, pos.z, heading, 0, 1);
+    Invoke(N::SET_MODEL_AS_NO_LONGER_NEEDED, car.model);
+    if (!v) {
+        Notify(msg);
+        return;
+    }
+    Invoke<int>(N::SET_VEHICLE_ON_GROUND_PROPERLY, v);
+    ApplySavedCar(v, car);
+    Invoke(N::SET_VEHICLE_DIRT_LEVEL, v, 0.0f);
+    Invoke(N::SET_VEHICLE_DOORS_LOCKED, v, 1);
+    Invoke(N::SET_VEHICLE_ENGINE_ON, v, 0, 1, 1);
+    Invoke(N::SET_VEHICLE_HAS_BEEN_OWNED_BY_PLAYER, v, 1);
+    Invoke(N::SET_VEHICLE_NEEDS_TO_BE_HOTWIRED, v, 0);
+    Invoke(N::SET_VEHICLE_IS_STOLEN, v, 0);
+
+    g_called = v;
+    g_calledIndex = index;
+    AddCarBlip(v, car.name);
+
+    std::snprintf(msg, sizeof msg, onRoad ? "%s is waiting nearby" : "%s is next to you", car.name.c_str());
+    Notify(msg);
+}
+
+void GarageTick(Ped player) {
+    if (!g_called) return;
+    if (!Invoke<int>(N::DOES_ENTITY_EXIST, g_called)) {
+        RemoveBlip();
+        g_called = 0;
+        g_calledIndex = -1;
+        return;
+    }
+    if (Invoke<int>(N::IS_ENTITY_DEAD, g_called) || !Invoke<int>(N::IS_VEHICLE_DRIVEABLE, g_called, 0)) {
+        // The garage entry may have been deleted since, so name it from the model.
+        std::string name = CarName(Invoke<Hash>(N::GET_ENTITY_MODEL, g_called));
+        char msg[128];
+        std::snprintf(msg, sizeof msg, "%s was destroyed", name.c_str());
+        Notify(msg);
+        ReleaseCalled();
+        return;
+    }
+    int shown = Invoke<int>(N::IS_PED_IN_VEHICLE, player, g_called, 0) ? 0 : 2;
+    if (g_blip && shown != g_blipShown) {
+        Invoke(N::SET_BLIP_DISPLAY, g_blip, shown);
+        g_blipShown = shown;
+    }
 }
