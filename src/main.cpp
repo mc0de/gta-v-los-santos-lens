@@ -1,6 +1,6 @@
 // Single-player ESP for GTA V (ScriptHookV plugin).
 // Default keys (configurable in SPESP.ini): Delete menu, F9 ESP, F10 pedestrians, F11 vehicles,
-// Page Up auto-aim, Page Down aim point, End teleport to waypoint, Insert skip time.
+// Page Up auto-aim, Page Down aim point, End teleport to waypoint, Insert skip time, Numpad + garage.
 // (F5-F8 are the game's character-switch keys.)
 
 #include "features.h"
@@ -48,6 +48,7 @@ void HandleHotkeys() {
     if (KeyPressed(k.aimBone))       g.aimBone = g.aimBone == AimBone::Head ? AimBone::Body : AimBone::Head;
     if (KeyPressed(k.teleport))      TeleportToWaypoint();
     if (KeyPressed(k.skipTime))      SkipTime();
+    if (KeyPressed(k.garage))        MenuOpenGarage();
 }
 
 void Tick() {

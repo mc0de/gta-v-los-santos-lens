@@ -294,6 +294,7 @@ void ReloadSettings() {
     ReadKey("Teleport", g.keys.teleport);
     ReadKey("SkipHour", g.keys.skipTime); // old name
     ReadKey("SkipTime", g.keys.skipTime);
+    ReadKey("Garage", g.keys.garage);
 
     ReadBool("ESP", "Enabled", g.esp);
     ReadBool("ESP", "ShowDead", g.showDead);
@@ -351,6 +352,7 @@ void SaveSettings() {
     WriteKey("AimBone", g.keys.aimBone);
     WriteKey("Teleport", g.keys.teleport);
     WriteKey("SkipTime", g.keys.skipTime);
+    WriteKey("Garage", g.keys.garage);
 
     WriteBool("ESP", "Enabled", g.esp);
     WriteBool("ESP", "ShowDead", g.showDead);

@@ -18,6 +18,7 @@ struct Keys {
     int aimBone          = VK_NEXT;  // Page Down
     int teleport         = VK_END;
     int skipTime         = VK_INSERT;
+    int garage           = VK_ADD;   // Numpad + (F1-F3 are the Rockstar Editor)
 };
 
 // What the ESP draws for one category of target.

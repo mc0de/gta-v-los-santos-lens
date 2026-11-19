@@ -9,9 +9,10 @@ namespace {
 // GridHeader is the non-selectable column-title row above it. ColumnBreak starts the
 // menu's second column; navigation runs down the first column and on into the second.
 // Submenu opens another page of items; Backspace returns to the main page.
-enum class ItemType { Header, GridHeader, ColumnBreak, Bool, Int, Float, Choice, Action, StyleRow, Submenu };
+// Car is one saved car on the Garage page (Enter calls it, X twice deletes it).
+enum class ItemType { Header, GridHeader, ColumnBreak, Bool, Int, Float, Choice, Action, StyleRow, Submenu, Car };
 
-enum Page { kMainPage, kVehicleTypesPage, kPageCount };
+enum Page { kMainPage, kVehicleTypesPage, kGaragePage, kPageCount };
 
 struct Item {
     ItemType type;
@@ -28,6 +29,7 @@ struct Item {
     EspStyle* style = nullptr;
     Page page = kMainPage;            // Submenu target
     const char* (*value)() = nullptr; // Submenu value text
+    int index = -1;                   // Car: garage entry
 };
 
 struct GridColumn { const char* title; bool EspStyle::* field; };
@@ -50,6 +52,8 @@ Item StyleRow(const char* label, EspStyle* s) { Item it{ ItemType::StyleRow, lab
 Item Submenu(const char* label, Page page, const char* (*value)()) {
     Item it{ ItemType::Submenu, label }; it.page = page; it.value = value; return it;
 }
+
+Item CarRow(const SavedCar& car, int index) { Item it{ ItemType::Car, car.name.c_str() }; it.index = index; return it; }
 
 Item IntRange(const char* label, int* v, int min, int max, int step, const char* fmt, const char* maxLabel = nullptr) {
     Item it{ ItemType::Int, label };
@@ -76,6 +80,33 @@ const char* const kPickLabels[]     = { "Crosshair", "Nearest" };
 
 void DoTeleport();
 void DoReload();
+void DoSaveCar() { GarageSaveCurrent(); }
+
+const char* GarageSummary() {
+    static char buf[16];
+    size_t n = GarageCars().size();
+    std::snprintf(buf, sizeof buf, n == 1 ? "1 car" : "%zu cars", n);
+    return buf;
+}
+
+// Rebuilt every frame while the page is showing, so it always matches the garage list
+// (labels point into GarageCars()). Cars past 20 continue in the second column.
+std::vector<Item>& GarageItems() {
+    static std::vector<Item> items;
+    items.clear();
+    items.push_back(Header("GARAGE"));
+    items.push_back(Action("Save current car", DoSaveCar));
+    const auto& cars = GarageCars();
+    if (cars.empty()) items.push_back(Header("No saved cars"));
+    for (int i = 0; i < static_cast<int>(cars.size()); ++i) {
+        if (i == 20) {
+            items.push_back(ColumnBreak());
+            items.push_back(Header(""));
+        }
+        items.push_back(CarRow(cars[i], i));
+    }
+    return items;
+}
 void ShowAllVehicleTypes() { g.vehTypes.fill(true); }
 void ShowNoVehicleTypes()  { g.vehTypes.fill(false); }
 
@@ -140,18 +171,28 @@ std::vector<Item>& PageItems(Page page) {
         Action("Teleport to waypoint", DoTeleport),
         Action("Skip time", SkipTime),
         IntRange("Hours to skip", &g.skipHours, 1, 23, 1, "%d h"),
+        Submenu("Garage", kGaragePage, GarageSummary),
         Action("Reload settings file", DoReload),
     };
+    static std::vector<Item> garage;
+    if (page == kGaragePage) return garage;
     return page == kVehicleTypesPage ? vehicleTypes : main;
 }
 
 bool g_open = false;
 Page g_page = kMainPage;
-int g_pageSel[kPageCount] = { 1, 1 }; // selected item on each page (index 1: first row after the header)
+int g_pageSel[kPageCount] = { 1, 1, 1 }; // selected item on each page (index 1: first row after the header)
 int g_col = 0; // selected column within grid rows
 bool g_pendingTeleport = false;
+int g_pendingCall = -1;     // garage entry to call after the input pass
+int g_deleteArmed = -1;     // Garage row index waiting for a second X
+bool g_garageFromHotkey = false; // Backspace closes instead of going back to the main page
 
 std::vector<Item>& Items() { return PageItems(g_page); }
+
+void RefreshGaragePage() {
+    PageItems(kGaragePage) = GarageItems();
+}
 int& Sel() { return g_pageSel[g_page]; }
 
 void DoTeleport() { g_pendingTeleport = true; }
@@ -165,7 +206,19 @@ bool Selectable(const Item& it) {
     return it.type != ItemType::Header && it.type != ItemType::GridHeader && it.type != ItemType::ColumnBreak;
 }
 
+// Puts the selection on a selectable row (pages can shrink, e.g. after a delete).
+void ClampSelection() {
+    auto& items = Items();
+    int n = static_cast<int>(items.size());
+    int& sel = Sel();
+    if (sel >= n) sel = n - 1;
+    if (sel < 0) sel = 0;
+    for (int tries = 0; tries < n && !Selectable(items[sel]); ++tries)
+        sel = (sel + n - 1) % n;
+}
+
 void Move(int dir) {
+    g_deleteArmed = -1;
     auto& items = Items();
     int n = static_cast<int>(items.size());
     int& sel = Sel();
@@ -197,7 +250,17 @@ void Adjust(Item& it, int dir) {
             if (dir == 0) it.action();
             break;
         case ItemType::Submenu:
-            if (dir >= 0) g_page = it.page;
+            if (dir >= 0) {
+                g_page = it.page;
+                g_garageFromHotkey = false;
+                if (g_page == kGaragePage) { // later keys this frame index the new page
+                    RefreshGaragePage();
+                    ClampSelection();
+                }
+            }
+            break;
+        case ItemType::Car:
+            if (dir == 0) g_pendingCall = it.index;
             break;
         case ItemType::StyleRow:
             // Left/Right move between cells; Enter toggles the selected one.
@@ -226,6 +289,16 @@ void FormatValue(const Item& it, bool selected, char* buf, size_t n) {
         case ItemType::Submenu:
             std::snprintf(buf, n, "%s >", it.value ? it.value() : "");
             return;
+        case ItemType::Car: {
+            if (selected && g_deleteArmed == Sel()) {
+                std::snprintf(buf, n, "X again to delete");
+                return;
+            }
+            const auto& cars = GarageCars();
+            const char* plate = it.index < static_cast<int>(cars.size()) ? cars[it.index].plate.c_str() : "";
+            std::snprintf(buf, n, "%s%s", plate, it.index == GarageCalledIndex() ? "  (out)" : "");
+            return;
+        }
         default:               buf[0] = '\0'; return;
     }
     if (selected) std::snprintf(buf, n, "< %s >", v);
@@ -366,11 +439,12 @@ void Draw() {
 
     // Help bar under the taller column.
     RowRect(kX, bottom, totalW, kBarBg);
-    Text(kX + totalW * 0.5f, bottom + 0.004f,
-         g_page == kMainPage
-             ? "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close"
-             : "Up/Down: move    Enter: toggle    Backspace: back    Delete: close",
-         kDimText, kSmallScale, true, 0, false);
+    const char* help =
+        g_page == kMainPage ? "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close"
+        : g_page != kGaragePage ? "Up/Down: move    Enter: toggle    Backspace: back    Delete: close"
+        : g_garageFromHotkey ? "Up/Down: move    Enter: call    X: delete    Backspace: close"
+                             : "Up/Down: move    Enter: call    X: delete    Backspace: back    Delete: close";
+    Text(kX + totalW * 0.5f, bottom + 0.004f, help, kDimText, kSmallScale, true, 0, false);
 }
 
 } // namespace
@@ -380,28 +454,76 @@ bool MenuIsOpen() { return g_open; }
 void MenuToggle() {
     g_open = !g_open;
     g_page = kMainPage;
+    g_garageFromHotkey = false;
+    g_deleteArmed = -1;
     if (!g_open) SaveSettings();
 }
 
+void MenuOpenGarage() {
+    if (g_open && g_page == kGaragePage) {
+        MenuToggle();
+        return;
+    }
+    g_open = true;
+    g_page = kGaragePage;
+    g_garageFromHotkey = true;
+    g_deleteArmed = -1;
+}
+
 void MenuTick() {
-    // Actions that call scriptWait (teleport) run after the menu's input pass.
+    // Actions that call scriptWait (teleport, calling a car) run after the menu's input pass.
     if (g_pendingTeleport) {
         g_pendingTeleport = false;
         TeleportToWaypoint();
     }
+    if (g_pendingCall >= 0) {
+        int index = g_pendingCall;
+        g_pendingCall = -1;
+        GarageCall(index);
+    }
     if (!g_open) return;
 
     BlockGameInput();
+    if (g_page == kGaragePage) {
+        RefreshGaragePage();
+        ClampSelection();
+    }
 
     // Items() is looked up per key: opening a submenu switches pages mid-pass.
     if (KeyRepeat(VK_UP))      Move(-1);
     if (KeyRepeat(VK_DOWN))    Move(1);
     if (KeyRepeat(VK_LEFT))    Adjust(Items()[Sel()], -1);
     if (KeyRepeat(VK_RIGHT))   Adjust(Items()[Sel()], 1);
-    if (KeyPressed(VK_RETURN)) Adjust(Items()[Sel()], 0);
+    if (KeyPressed(VK_RETURN)) {
+        g_deleteArmed = -1;
+        Adjust(Items()[Sel()], 0);
+        if (g_page == kGaragePage) { // a save may have grown the list (labels point into it)
+            RefreshGaragePage();
+            ClampSelection();
+        }
+        if (g_pendingCall >= 0) { // calling a car closes the menu so you can walk to it
+            MenuToggle();
+            return;
+        }
+    }
+    if (g_page == kGaragePage && KeyPressed('X')) {
+        const Item& it = Items()[Sel()];
+        if (it.type == ItemType::Car) {
+            if (g_deleteArmed == Sel()) {
+                g_deleteArmed = -1;
+                GarageDelete(it.index);
+                RefreshGaragePage();
+                ClampSelection();
+            } else {
+                g_deleteArmed = Sel();
+            }
+        }
+    }
     if (KeyPressed(VK_BACK)) {
+        g_deleteArmed = -1;
+        if (g_page == kGaragePage && g_garageFromHotkey) { MenuToggle(); return; }
         if (g_page != kMainPage) g_page = kMainPage;
-        else                     MenuToggle();
+        else                     { MenuToggle(); return; }
     }
 
     Draw();

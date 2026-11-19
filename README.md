@@ -63,9 +63,20 @@ Other options:
 - **Teleport to waypoint**: set a map marker and press End (or use the menu). In a vehicle, the vehicle comes with you. Over water you land on the surface, not the seabed. If no ground is found you're taken out of any vehicle and dropped from the sky with a parachute.
 - **Skip time**: press Insert (or use the menu) to move the game clock forward 6 hours. The amount (1–23 hours) is set by **Hours to skip** in the menu. A notification shows the new time.
 
+### Garage
+Save the car you're in and call it back later, wherever you are. Press **Numpad +** (or open **Garage** in the menu's Misc section).
+
+- **Save current car** (you must be in it) stores everything that makes the car yours: the model, every mod (engine, brakes, bodywork, wheels, custom tyres, turbo, xenon, tyre smoke), primary / secondary / pearlescent / wheel colours including custom RGB paint and paint type, extras, livery, window tint, neon lights and their colour, tyre smoke colour, plate text and style, and bulletproof tyres. Saving the car you called again updates its entry instead of adding a new one. Only road vehicles (cars, bikes, quads, bicycles) can be saved. Up to 40 cars.
+- **Calling**: pick a car and press Enter. The menu closes and the car appears empty on the nearest road 30–60 m away, out of view where possible, facing along the road, unlocked, engine off and clean. If there's no road nearby it appears right next to you. A purple car blip shows where it is; the blip hides while you're in the car and comes back when you get out.
+- **One car at a time**: calling another car removes the previous one if you're not in it and it's off screen. Otherwise the old car is left to the game, which keeps or despawns it like any other car. If the called car is destroyed you get a notification and the blip goes away.
+- **Deleting**: select a car and press X twice.
+- The rows show the plate on the right, and `(out)` on the car that's currently called.
+- **Not saved**: damage and dirt (called cars always arrive fixed and clean), and interior, dashboard and xenon colours, which the ScriptHookV SDK this is built with can't read.
+- Nothing goes through the game's cheat system.
+
 ## Menu and hotkeys
 
-Press **Delete** to open the menu. It's laid out in two columns (ESP and Finder on the left, Auto-aim and Misc on the right); Up/Down runs down the left column and on into the right one. Arrow keys move / change values (in the ESP grid, Left/Right move between cells), Enter toggles or runs an action, Backspace or Delete closes it. (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `SPESP.ini` when the menu closes.
+Press **Delete** to open the menu. It's laid out in two columns (ESP and Finder on the left, Auto-aim and Misc on the right); Up/Down runs down the left column and on into the right one. Arrow keys move / change values (in the ESP grid, Left/Right move between cells), Enter toggles or runs an action, Backspace or Delete closes it (Backspace on a sub-page goes back to the main page, except on the garage page when you opened it with Numpad +). (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `SPESP.ini` when the menu closes.
 
 | Key | Action |
 |---|---|
@@ -77,8 +88,9 @@ Press **Delete** to open the menu. It's laid out in two columns (ESP and Finder 
 | Page Down | Switch aim point: head / body |
 | End | Teleport to waypoint |
 | Insert | Skip game time forward (6 hours by default) |
+| Numpad + | Open / close the garage |
 
-F5–F8 are left alone because the game uses them for character switching.
+F5–F8 are left alone because the game uses them for character switching, and F1–F3 because they run the Rockstar Editor.
 
 A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | AIM HEAD`, listing the ESP categories that are on: H = hostiles, C = cops, P = pedestrians, A = animals, V = vehicles (plus `:Type` when a vehicle type filter is set).
 
@@ -86,11 +98,16 @@ A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | A
 
 Created next to `SPESP.asi` with defaults on first run. Edit it while the game runs and use **Reload settings file** in the menu to apply.
 
-- `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey.
+- `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey. The garage key is `Garage=Add` (Numpad +).
 - `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position and `SpeedoX` / `SpeedoY` for the speedometer position (0–1 screen fractions). `[ESP] VehicleTypes` is `All`, `None`, or a comma-separated list of the menu's class names (`Super, Sports, Sports Classics`). Values outside the menu's ranges are clamped, and spaces around `=` are ignored.
 - `[ESP.Hostiles]`, `[ESP.Cops]`, `[ESP.Pedestrians]`, `[ESP.Animals]`, `[ESP.Vehicles]`: the grid, with keys `Enabled`, `Box`, `Health`, `Distance`, `Labels`, `Tracers`.
+- `[Garage]`: `BlipSprite` (default 225, a car icon) and `BlipColour` (default 27, purple) for the called car's blip. These ids are best-known values and haven't been verified in-game; change them here if the icon or colour is wrong.
 - `[Collectibles]`: `model_name=Label` lines.
 - `[Pickups]`: `model_name=Label` lines naming non-weapon pickups.
+
+### Garage file (`SPESP_garage.ini`)
+
+Saved cars are kept in `SPESP_garage.ini` next to `SPESP.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file**. A car whose model the game doesn't know shows as `(invalid)` and can't be called.
 
 ## Building
 
@@ -134,6 +151,7 @@ To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI p
 | `src/esp.cpp` | Ped categories, ped / vehicle ESP, labels, threat arrows |
 | `src/aim.cpp` | Auto-aim target selection, line of sight, smoothing, aim zone |
 | `src/world.cpp` | Collectible / pickup finder, damage numbers, speedometer, teleport, skip time |
+| `src/garage.cpp` | Garage: saving a car's setup, `SPESP_garage.ini`, calling a car, its blip |
 | `src/vehicle_makes.h` | Generated table: vehicle model hash -> in-game make and real-life brand |
 | `src/menu.*` | In-game menu |
 | `src/main.cpp` | Plugin entry point, hotkeys, status line |
