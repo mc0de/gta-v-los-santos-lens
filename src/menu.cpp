@@ -2,6 +2,8 @@
 #include "features.h"
 #include "photo.h"
 #include <cstdio>
+#include <initializer_list>
+#include <string>
 #include <vector>
 
 namespace {
@@ -54,7 +56,16 @@ Item Submenu(const char* label, Page page, const char* (*value)()) {
     Item it{ ItemType::Submenu, label }; it.page = page; it.value = value; return it;
 }
 
-Item CarRow(const SavedCar& car, int index) { Item it{ ItemType::Car, car.name.c_str() }; it.index = index; return it; }
+// Favourites get a star in front of the name; the labels live as long as the garage list.
+const char* CarLabel(const SavedCar& car) {
+    if (!car.favorite) return car.name.c_str();
+    static std::string labels[kGarageMax];
+    static int next = 0;
+    std::string& s = labels[next++ % kGarageMax];
+    s = "* " + car.name;
+    return s.c_str();
+}
+Item CarRow(const SavedCar& car, int index) { Item it{ ItemType::Car, CarLabel(car) }; it.index = index; return it; }
 
 Item IntRange(const char* label, int* v, int min, int max, int step, const char* fmt, const char* maxLabel = nullptr) {
     Item it{ ItemType::Int, label };
@@ -81,6 +92,7 @@ const char* const kPickLabels[]     = { "Crosshair", "Nearest" };
 
 void DoTeleport();
 void DoReload();
+constexpr int kGarageColumnRows = 20; // cars past this continue in the second column
 bool g_pendingSave = false; // saving waits for the photo camera, so it runs after the input pass
 void DoSaveCar() { g_pendingSave = true; }
 
@@ -100,8 +112,9 @@ std::vector<Item>& GarageItems() {
     items.push_back(Action("Save current car", DoSaveCar));
     const auto& cars = GarageCars();
     if (cars.empty()) items.push_back(Header("No saved cars"));
-    for (int i = 0; i < static_cast<int>(cars.size()); ++i) {
-        if (i == 20) {
+    int row = 0;
+    for (int i : GarageDisplayOrder()) {
+        if (row++ == kGarageColumnRows) {
             items.push_back(ColumnBreak());
             items.push_back(Header(""));
         }
@@ -187,6 +200,7 @@ int g_pageSel[kPageCount] = { 1, 1, 1 }; // selected item on each page (index 1:
 int g_col = 0; // selected column within grid rows
 bool g_pendingTeleport = false;
 int g_pendingCall = -1;     // garage entry to call after the input pass
+int g_pendingPlate = -1;    // garage entry whose plate to edit after the input pass
 int g_deleteArmed = -1;     // Garage row index waiting for a second X
 bool g_garageFromHotkey = false; // Backspace closes instead of going back to the main page
 
@@ -317,6 +331,7 @@ void BlockGameInput() {
         27,                          // INPUT_PHONE
         172, 173, 174, 175, 176, 177, // INPUT_CELLPHONE_UP/DOWN/LEFT/RIGHT/SELECT/CANCEL
         199, 200, 201, 202,          // INPUT_FRONTEND_PAUSE / PAUSE_ALTERNATE / ACCEPT / CANCEL
+        23, 73, 75,                  // INPUT_ENTER (F), INPUT_VEH_DUCK (X), INPUT_VEH_EXIT (F): garage keys
     };
     for (int c : kControls)
         Invoke(N::DISABLE_CONTROL_ACTION, 0, c, 1);
@@ -460,9 +475,38 @@ void Draw() {
     const char* help =
         g_page == kMainPage ? "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close"
         : g_page != kGaragePage ? "Up/Down: move    Enter: toggle    Backspace: back    Delete: close"
-        : g_garageFromHotkey ? "Up/Down: move    Enter: call    X: delete    Backspace: close"
-                             : "Up/Down: move    Enter: call    X: delete    Backspace: back    Delete: close";
+        : g_garageFromHotkey ? "Up/Down: move    Enter: call    F: favorite    P: plate    X: delete    Backspace: close"
+                             : "Up/Down: move    Enter: call    F: favorite    P: plate    X: delete    Backspace: back";
     Text(kX + totalW * 0.5f, bottom + 0.004f, help, kDimText, kSmallScale, true, 0, false);
+}
+
+} // namespace
+
+namespace {
+
+bool AnyKeyHeld(std::initializer_list<int> keys) {
+    for (int vk : keys)
+        if (GetAsyncKeyState(vk) & 0x8000) return true;
+    return false;
+}
+
+// The game's on-screen keyboard, prefilled with the current plate.
+void EditPlate(int index) {
+    const auto& cars = GarageCars();
+    if (index < 0 || index >= static_cast<int>(cars.size())) return;
+    std::string current = cars[index].plate;
+    Invoke(N::DISPLAY_ONSCREEN_KEYBOARD, 0, "FMMC_KEY_TIP8", "", current.c_str(), "", "", "", 8);
+    int status = 0;
+    while ((status = Invoke<int>(N::UPDATE_ONSCREEN_KEYBOARD)) == 0) scriptWait(0);
+    // Let go of the key that closed the keyboard, or the menu would see it as a fresh press.
+    while (AnyKeyHeld({ VK_RETURN, VK_ESCAPE, VK_BACK })) scriptWait(0);
+    if (status != 1) return;
+    const char* result = Invoke<const char*>(N::GET_ONSCREEN_KEYBOARD_RESULT);
+    if (result && GarageSetPlate(index, result)) {
+        char msg[48];
+        std::snprintf(msg, sizeof msg, "Plate set to %s", GarageCars()[index].plate.c_str());
+        Notify(msg);
+    }
 }
 
 } // namespace
@@ -503,6 +547,11 @@ void MenuTick() {
         g_pendingSave = false;
         GarageSaveCurrent();
     }
+    if (g_pendingPlate >= 0) {
+        int index = g_pendingPlate;
+        g_pendingPlate = -1;
+        EditPlate(index);
+    }
     if (!g_open) return;
 
     BlockGameInput();
@@ -514,8 +563,8 @@ void MenuTick() {
     // Items() is looked up per key: opening a submenu switches pages mid-pass.
     if (KeyRepeat(VK_UP))      Move(-1);
     if (KeyRepeat(VK_DOWN))    Move(1);
-    if (KeyRepeat(VK_LEFT))    Adjust(Items()[Sel()], -1);
-    if (KeyRepeat(VK_RIGHT))   Adjust(Items()[Sel()], 1);
+    if (KeyRepeat(VK_LEFT))    { g_deleteArmed = -1; Adjust(Items()[Sel()], -1); }
+    if (KeyRepeat(VK_RIGHT))   { g_deleteArmed = -1; Adjust(Items()[Sel()], 1); }
     if (KeyPressed(VK_RETURN)) {
         g_deleteArmed = -1;
         Adjust(Items()[Sel()], 0);
@@ -526,6 +575,21 @@ void MenuTick() {
         if (g_pendingCall >= 0) { // calling a car closes the menu so you can walk to it
             MenuToggle();
             return;
+        }
+    }
+    if (g_page == kGaragePage && Items()[Sel()].type == ItemType::Car) {
+        int index = Items()[Sel()].index;
+        if (KeyPressed('F')) {
+            g_deleteArmed = -1;
+            GarageToggleFavorite(index);
+            RefreshGaragePage();
+            auto& items = Items(); // keep the selection on the same car
+            for (int i = 0; i < static_cast<int>(items.size()); ++i)
+                if (items[i].type == ItemType::Car && items[i].index == index) Sel() = i;
+        }
+        if (KeyPressed('P')) {
+            g_deleteArmed = -1;
+            g_pendingPlate = index;
         }
     }
     if (g_page == kGaragePage && KeyPressed('X')) {

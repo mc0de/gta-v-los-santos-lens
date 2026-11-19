@@ -171,6 +171,11 @@ namespace N {
     constexpr UINT64 DESTROY_CAM                           = 0x865908C81A2C22E9;
     constexpr UINT64 HIDE_HUD_AND_RADAR_THIS_FRAME         = 0x719FF505F097FD20;
 
+    // garage: plate editor (the game's on-screen keyboard)
+    constexpr UINT64 DISPLAY_ONSCREEN_KEYBOARD             = 0x00DC833F2568DBF6;
+    constexpr UINT64 UPDATE_ONSCREEN_KEYBOARD              = 0x0CF2B696BBF945AE; // 0 editing, 1 done, 2 cancelled, 3 inactive
+    constexpr UINT64 GET_ONSCREEN_KEYBOARD_RESULT          = 0x8362B09B91893647;
+
     // camera
     constexpr UINT64 GET_GAMEPLAY_CAM_COORD                = 0x14D6F5678D8F1B37;
     constexpr UINT64 GET_GAMEPLAY_CAM_ROT                  = 0x837765A25378F0BB;

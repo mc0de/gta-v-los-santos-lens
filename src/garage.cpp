@@ -4,6 +4,7 @@
 
 #include "features.h"
 #include "photo.h"
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -219,6 +220,7 @@ bool WriteGarage() {
         num("PlateStyle", c.plateStyle);
         flag("BulletproofTyres", c.bulletproofTyres);
         line("Photo", c.photo);
+        flag("Favorite", c.favorite);
     }
     std::string path = GaragePath(), tmp = path + ".tmp";
     FILE* f = std::fopen(tmp.c_str(), "wb");
@@ -270,6 +272,7 @@ SavedCar ReadCar(const std::string& path, const char* sec) {
     num("PlateStyle", c.plateStyle);
     flag("BulletproofTyres", c.bulletproofTyres);
     c.photo = get("Photo");
+    flag("Favorite", c.favorite);
 
     c.valid = c.model != 0 && Invoke<int>(N::IS_MODEL_IN_CDIMAGE, c.model) && Invoke<int>(N::IS_MODEL_A_VEHICLE, c.model);
     if (c.name.empty()) {
@@ -545,4 +548,39 @@ void GarageTick(Ped player) {
         Invoke(N::SET_BLIP_DISPLAY, g_blip, shown);
         g_blipShown = shown;
     }
+}
+
+// ---- Favourites and plates ----
+
+std::vector<int> GarageDisplayOrder() {
+    std::vector<int> order;
+    for (int pass = 0; pass < 2; ++pass)
+        for (int i = 0; i < static_cast<int>(g_cars.size()); ++i)
+            if (g_cars[i].favorite == (pass == 0)) order.push_back(i);
+    return order;
+}
+
+void GarageToggleFavorite(int index) {
+    if (index < 0 || index >= static_cast<int>(g_cars.size())) return;
+    g_cars[index].favorite = !g_cars[index].favorite;
+    if (!WriteGarage()) Notify("Couldn't write SPESP_garage.ini");
+}
+
+bool GarageSetPlate(int index, const std::string& text) {
+    if (index < 0 || index >= static_cast<int>(g_cars.size())) return false;
+    std::string plate;
+    for (char ch : text) {
+        if (static_cast<unsigned char>(ch) < 32) continue;
+        plate += static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+    }
+    size_t b = plate.find_first_not_of(' '), e = plate.find_last_not_of(' ');
+    plate = b == std::string::npos ? std::string() : plate.substr(b, e - b + 1);
+    if (plate.size() > kPlateMax) plate.resize(kPlateMax);
+    if (plate.empty()) return false;
+
+    g_cars[index].plate = plate;
+    if (index == g_calledIndex && g_called && Invoke<int>(N::DOES_ENTITY_EXIST, g_called))
+        Invoke(N::SET_VEHICLE_NUMBER_PLATE_TEXT, g_called, plate.c_str());
+    if (!WriteGarage()) Notify("Couldn't write SPESP_garage.ini");
+    return true;
 }

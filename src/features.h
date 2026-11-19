@@ -85,3 +85,8 @@ void GarageDelete(int index);
 void GarageCall(int index);       // waits for the model to stream in: call from the deferred path only
 void GarageTick(Ped player);
 int GarageCalledIndex();          // garage entry of the car that's out, or -1
+std::vector<int> GarageDisplayOrder(); // garage indices, favourites first, otherwise save order
+void GarageToggleFavorite(int index);
+// Trims, uppercases and cuts to 8 characters; empty text changes nothing (returns false).
+// Also changes the called car's plate when it's this entry.
+bool GarageSetPlate(int index, const std::string& text);
