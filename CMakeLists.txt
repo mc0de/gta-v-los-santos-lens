@@ -14,6 +14,7 @@ add_library(gta_esp SHARED
     src/esp.cpp
     src/aim.cpp
     src/world.cpp
+    src/garage.cpp
     src/menu.cpp)
 target_include_directories(gta_esp PRIVATE "${SHV_SDK}/inc")
 target_link_libraries(gta_esp PRIVATE "${SHV_SDK}/lib/ScriptHookV.lib")

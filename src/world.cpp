@@ -329,8 +329,6 @@ void SkipTime() {
     Notify(msg);
 }
 
-namespace {
-
 const VehicleMake* FindVehicleMake(Hash model) {
     auto end = std::end(kVehicleMakes);
     auto it = std::lower_bound(std::begin(kVehicleMakes), end, static_cast<uint32_t>(model),
@@ -338,7 +336,10 @@ const VehicleMake* FindVehicleMake(Hash model) {
     return it != end && it->model == static_cast<uint32_t>(model) ? it : nullptr;
 }
 
-} // namespace
+const char* VehicleMakeName(Hash model) {
+    const VehicleMake* m = FindVehicleMake(model);
+    return m ? m->make : "";
+}
 
 void SpeedometerTick(Ped player) {
     // Best speed reached, kept per vehicle and reset when you get into a different one.

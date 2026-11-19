@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "features.h" // GarageLoad
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -113,6 +114,8 @@ void ClampSettings() {
     Clamp(g.speedoY, 0.0f, 1.0f);
     Clamp(g.statusX, 0.0f, 1.0f);
     Clamp(g.statusY, 0.0f, 1.0f);
+    Clamp(g.garageBlipSprite, 0, 1000);
+    Clamp(g.garageBlipColour, 0, 85);
 }
 
 std::string Read(const char* sec, const char* key) {
@@ -330,9 +333,13 @@ void ReloadSettings() {
     ReadFloat("Misc", "StatusX", g.statusX);
     ReadFloat("Misc", "StatusY", g.statusY);
 
+    ReadInt("Garage", "BlipSprite", g.garageBlipSprite);
+    ReadInt("Garage", "BlipColour", g.garageBlipColour);
+
     ReadModelList("Collectibles", g.collectibleModels, kDefaultCollectibles);
     ReadModelList("Pickups", g.pickupModels, kDefaultPickups);
     ClampSettings();
+    GarageLoad();
 }
 
 void SaveSettings() {
@@ -383,9 +390,14 @@ void SaveSettings() {
     WriteFloat("Misc", "StatusX", g.statusX);
     WriteFloat("Misc", "StatusY", g.statusY);
 
+    WriteInt("Garage", "BlipSprite", g.garageBlipSprite);
+    WriteInt("Garage", "BlipColour", g.garageBlipColour);
+
     WriteModelList("Collectibles", g.collectibleModels);
     WriteModelList("Pickups", g.pickupModels);
 }
+
+const std::string& IniPath() { return g_path; }
 
 void LoadSettings(HMODULE module) {
     char path[MAX_PATH];

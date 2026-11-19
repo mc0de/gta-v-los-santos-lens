@@ -100,6 +100,10 @@ struct Settings {
     float speedoY = 0.985f;
     float statusX = 0.06f;
     float statusY = 0.002f;
+
+    // Garage blip (ini only). Best-known ids, not verified: 225 = car icon, 27 = purple.
+    int garageBlipSprite = 225;
+    int garageBlipColour = 27;
 };
 
 extern Settings g;
@@ -108,3 +112,5 @@ extern Settings g;
 void LoadSettings(HMODULE module);
 void ReloadSettings();
 void SaveSettings();
+// Full path of SPESP.ini.
+const std::string& IniPath();
