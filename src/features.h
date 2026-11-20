@@ -44,6 +44,8 @@ void FinderTick(const Vec3& me);
 void LettersTick(const Vec3& me);
 void DamageNumbersTick(Ped player);
 void SpeedometerTick(Ped player);
+void BestSpeedsLoad();  // reads SPESP_speeds.ini (best speed per vehicle model)
+void BestSpeedsClear(); // forgets every best speed and rewrites the file
 void TeleportToWaypoint();
 void SkipTime();
 

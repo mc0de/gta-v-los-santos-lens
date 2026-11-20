@@ -92,6 +92,7 @@ const char* const kPickLabels[]     = { "Crosshair", "Nearest" };
 
 void DoTeleport();
 void DoReload();
+void DoClearBestSpeeds();
 constexpr int kGarageColumnRows = 20; // cars past this continue in the second column
 bool g_pendingSave = false; // saving waits for the photo camera, so it runs after the input pass
 void DoSaveCar() { g_pendingSave = true; }
@@ -183,6 +184,7 @@ std::vector<Item>& PageItems(Page page) {
         Header("MISC"),
         Toggle("Damage numbers", &g.damageNumbers),
         Toggle("Speedometer", &g.speedometer),
+        Action("Clear best speeds", DoClearBestSpeeds),
         Action("Teleport to waypoint", DoTeleport),
         Action("Skip time", SkipTime),
         IntRange("Hours to skip", &g.skipHours, 1, 23, 1, "%d h"),
@@ -212,6 +214,20 @@ void RefreshGaragePage() {
 int& Sel() { return g_pageSel[g_page]; }
 
 void DoTeleport() { g_pendingTeleport = true; }
+
+// Every car's record is lost, so it takes a second Enter within 3 s.
+void DoClearBestSpeeds() {
+    static ULONGLONG armedAt = 0;
+    ULONGLONG now = GetTickCount64();
+    if (armedAt && now - armedAt < 3000) {
+        armedAt = 0;
+        BestSpeedsClear();
+        Notify("Best speeds cleared");
+    } else {
+        armedAt = now;
+        Notify("Press Enter again to clear every car's best speed");
+    }
+}
 
 void DoReload() {
     ReloadSettings();

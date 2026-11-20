@@ -5,6 +5,7 @@
 
 #include "features.h"
 #include "menu.h"
+#include "photo.h"
 #include <cstdio>
 #include <cstring>
 
@@ -75,6 +76,9 @@ void Tick() {
 }
 
 void ScriptMain() {
+    // ScriptMain starts again each time a save is loaded, and ScriptHookV has deleted every
+    // texture by then, so the cached photo ids are stale.
+    PhotoResetTextures();
     LoadSettings(g_module);
     for (;;) {
         Tick();

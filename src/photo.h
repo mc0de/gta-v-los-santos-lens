@@ -16,3 +16,7 @@ bool TakeCarPhoto(Vehicle v, const std::string& file);
 // Draws PhotoDir() + file centred at x/y, w/h in screen fractions. Returns false without drawing
 // when the file is missing or can't be loaded. Textures are cached by file name.
 bool DrawPhoto(const std::string& file, float x, float y, float w, float h);
+
+// Forgets every cached texture id. ScriptHookV deletes all textures when it reloads scripts
+// (loading a save from in-game), so call this at the start of ScriptMain.
+void PhotoResetTextures();

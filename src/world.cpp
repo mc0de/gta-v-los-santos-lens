@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iterator>
 #include <string>
@@ -346,32 +347,116 @@ const char* VehicleRealBrand(Hash model) {
     return m ? m->real : "";
 }
 
-void SpeedometerTick(Ped player) {
-    // Best speed reached, kept per vehicle and reset when you get into a different one.
-    static Vehicle s_vehicle = 0;
-    static float s_best = 0.0f;
+// ---- Best speeds, per vehicle model, kept in SPESP_speeds.ini ----
 
-    if (!g.speedometer || !Invoke<BOOL>(N::IS_PED_IN_ANY_VEHICLE, player, 0)) return;
-    Vehicle veh = Invoke<Vehicle>(N::GET_VEHICLE_PED_IS_USING, player);
-    if (!veh || !Invoke<BOOL>(N::DOES_ENTITY_EXIST, veh)) return;
+namespace {
+
+std::unordered_map<Hash, float> g_bestSpeeds; // km/h
+bool g_bestDirty = false;
+ULONGLONG g_bestSavedAt = 0;
+
+std::string SpeedsPath() {
+    std::string p = IniPath();
+    size_t dot = p.find_last_of('.');
+    return (dot == std::string::npos ? p : p.substr(0, dot)) + "_speeds.ini";
+}
+
+// Whole file at once, through a temp file so a crash mid-write can't truncate it.
+void WriteBestSpeeds() {
+    g_bestDirty = false;
+    g_bestSavedAt = GetTickCount64();
+    std::vector<std::pair<Hash, float>> rows(g_bestSpeeds.begin(), g_bestSpeeds.end());
+    std::sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::string out = "; SPESP best speeds in km/h, per vehicle model (fastest first). "
+                      "Edit while the game is closed.\n[BestSpeed]\n";
+    char line[160];
+    for (const auto& [model, kmh] : rows) {
+        if (!(kmh > 0.0f)) continue; // models only sat in
+        std::string make = VehicleMakeName(model), name = VehicleModelName(model);
+        std::snprintf(line, sizeof line, "0x%08X=%.1f ; %s%s%s\n", static_cast<unsigned>(model), kmh,
+                      make.c_str(), make.empty() ? "" : " ", name.c_str());
+        out += line;
+    }
+    std::string path = SpeedsPath(), tmp = path + ".tmp";
+    FILE* f = std::fopen(tmp.c_str(), "wb");
+    if (!f) return;
+    bool ok = std::fwrite(out.data(), 1, out.size(), f) == out.size();
+    ok = std::fclose(f) == 0 && ok;
+    if (ok) ok = MoveFileExA(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
+    if (!ok) DeleteFileA(tmp.c_str());
+}
+
+} // namespace
+
+void BestSpeedsLoad() {
+    if (g_bestDirty) WriteBestSpeeds(); // don't lose a record set just before a reload
+    g_bestSpeeds.clear();
+    FILE* f = std::fopen(SpeedsPath().c_str(), "rb");
+    if (!f) return;
+    char line[256];
+    while (std::fgets(line, sizeof line, f)) {
+        // "0xHASH=km/h ; name": strtoul / strtof stop at '=' and at the comment.
+        char* eq = std::strchr(line, '=');
+        if (!eq || line[0] == ';' || line[0] == '[') continue;
+        char* end = nullptr;
+        unsigned long model = std::strtoul(line, &end, 16);
+        if (end == line) continue;
+        float kmh = std::strtof(eq + 1, &end);
+        if (end == eq + 1 || !(kmh > 0.0f)) continue;
+        g_bestSpeeds[static_cast<Hash>(model)] = kmh;
+    }
+    std::fclose(f);
+}
+
+void BestSpeedsClear() {
+    g_bestSpeeds.clear();
+    WriteBestSpeeds();
+}
+
+void SpeedometerTick(Ped player) {
+    // The vehicle the player was last in, and its model's best speed (km/h).
+    static Vehicle s_vehicle = 0;
+    static Hash s_modelHash = 0;
+
+    // New records are written at most every 2 s (not every frame while still accelerating),
+    // and straight away when the player leaves or changes vehicle.
+    auto flush = [] { if (g_bestDirty) WriteBestSpeeds(); };
+    if (g_bestDirty && GetTickCount64() - g_bestSavedAt > 2000) flush();
+
+    // Records are kept even while the panel is hidden.
+    Vehicle veh = Invoke<BOOL>(N::IS_PED_IN_ANY_VEHICLE, player, 0)
+                      ? Invoke<Vehicle>(N::GET_VEHICLE_PED_IS_USING, player) : 0;
+    if (!veh || !Invoke<BOOL>(N::DOES_ENTITY_EXIST, veh)) {
+        flush();
+        s_vehicle = 0;
+        return;
+    }
 
     constexpr float kKmh = 3.6f; // m/s -> km/h
     float speed = Invoke<float>(N::GET_ENTITY_SPEED, veh) * kKmh;
-    float top = Invoke<float>(N::GET_VEHICLE_ESTIMATED_MAX_SPEED, veh) * kKmh;
     // Name parts only change with the vehicle, so they're looked up once per vehicle.
     static const VehicleMake* s_make = nullptr;
     static char s_model[64] = "";
     static const char* s_class = "";
     if (veh != s_vehicle) {
+        flush();
         s_vehicle = veh;
-        s_best = 0.0f;
         Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, veh);
+        s_modelHash = model;
         s_make = FindVehicleMake(model);
         std::snprintf(s_model, sizeof s_model, "%s", VehicleModelName(model));
         int cls = Invoke<int>(N::GET_VEHICLE_CLASS, veh);
         s_class = cls >= 0 && cls < kVehicleClassCount ? kVehicleClasses[cls] : "";
     }
-    if (speed > s_best) s_best = speed;
+    float& best = g_bestSpeeds[s_modelHash];
+    if (speed > best + 0.05f) {
+        if (!g_bestDirty) g_bestSavedAt = GetTickCount64(); // the 2 s count from the first new record
+        best = speed;
+        g_bestDirty = true;
+    }
+    if (!g.speedometer) return;
+    const float s_best = best;
+    float top = Invoke<float>(N::GET_VEHICLE_ESTIMATED_MAX_SPEED, veh) * kKmh;
 
     // GTA timer-bar style: one dark panel in the bottom-right corner (SpeedoX / SpeedoY):
     //   BENEFACTOR                 Panto     make (cyan) / model

@@ -113,7 +113,12 @@ bool WritePng(const std::string& path, std::vector<BYTE>& px) {
     return ok;
 }
 
+// Texture id per photo file name, or -1 if it failed to load.
+std::unordered_map<std::string, int> g_textures;
+
 } // namespace
+
+void PhotoResetTextures() { g_textures.clear(); }
 
 std::string PhotoDir() {
     std::string dir = IniPath();
@@ -156,12 +161,11 @@ bool TakeCarPhoto(Vehicle v, const std::string& file) {
 
 bool DrawPhoto(const std::string& file, float x, float y, float w, float h) {
     if (file.empty()) return false;
-    static std::unordered_map<std::string, int> cache; // texture id, or -1 if it failed to load
-    auto it = cache.find(file);
-    if (it == cache.end()) {
+    auto it = g_textures.find(file);
+    if (it == g_textures.end()) {
         std::string path = PhotoDir() + file;
         if (GetFileAttributesA(path.c_str()) == INVALID_FILE_ATTRIBUTES) return false; // retry later
-        it = cache.emplace(file, createTexture(path.c_str())).first;
+        it = g_textures.emplace(file, createTexture(path.c_str())).first;
     }
     if (it->second < 0) return false;
     // sizeY is measured in screen widths here (seen in-game), so convert from a screen-height fraction.

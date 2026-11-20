@@ -341,6 +341,7 @@ void ReloadSettings() {
     ReadModelList("Pickups", g.pickupModels, kDefaultPickups);
     ClampSettings();
     GarageLoad();
+    BestSpeedsLoad();
 }
 
 void SaveSettings() {
