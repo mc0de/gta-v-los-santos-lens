@@ -1,6 +1,7 @@
 #include "menu.h"
 #include "features.h"
 #include "photo.h"
+#include <algorithm>
 #include <cstdio>
 #include <initializer_list>
 #include <string>
@@ -93,7 +94,8 @@ const char* const kPickLabels[]     = { "Crosshair", "Nearest" };
 void DoTeleport();
 void DoReload();
 void DoClearBestSpeeds();
-constexpr int kGarageColumnRows = 20; // cars past this continue in the second column
+constexpr int kGarageVisibleRows = 21; // rows shown under the GARAGE header; longer lists scroll
+int g_garageScroll = 0;                // first visible row under the header
 bool g_pendingSave = false; // saving waits for the photo camera, so it runs after the input pass
 bool g_pendingOverwrite = false;
 // Saving the called car asks first: overwrite its entry (Yes) or save a new one (No, the default).
@@ -116,7 +118,7 @@ const char* GarageSummary() {
 }
 
 // Rebuilt every frame while the page is showing, so it always matches the garage list
-// (labels point into GarageCars()). Cars past 20 continue in the second column.
+// (labels point into GarageCars()). It stays in one column; Draw scrolls long lists.
 std::vector<Item>& GarageItems() {
     static std::vector<Item> items;
     items.clear();
@@ -125,20 +127,11 @@ std::vector<Item>& GarageItems() {
     // The called car comes first so it can be called again quickly; it isn't repeated below.
     int called = GarageCalledIndex();
     if (called < 0 || called >= static_cast<int>(cars.size())) called = -1;
-    int row = 0;
-    if (called >= 0) {
-        items.push_back(CarRow(cars[called], called));
-        ++row;
-    }
+    if (called >= 0) items.push_back(CarRow(cars[called], called));
     items.push_back(Action(g_overwriteAsk >= 0 ? "Overwrite saved car?" : "Save current car", DoSaveCar));
-    ++row;
-    if (cars.empty()) { items.push_back(Header("No saved cars")); ++row; }
+    if (cars.empty()) items.push_back(Header("No saved cars"));
     for (int i : GarageDisplayOrder()) {
         if (i == called) continue;
-        if (row++ == kGarageColumnRows + 1) {
-            items.push_back(ColumnBreak());
-            items.push_back(Header(""));
-        }
         items.push_back(CarRow(cars[i], i));
     }
     return items;
@@ -387,7 +380,6 @@ constexpr float kTextScale = 0.24f, kSmallScale = 0.2f;
 constexpr float kTextDy = 0.002f;             // text baseline offset inside a row
 constexpr float kGridX = 0.085f;              // centre of the first grid column, from the column's left edge
 constexpr float kGridColW = 0.0245f;
-constexpr float kPanelGap = 0.01f; // garage preview panel, when it can't use the menu's second column
 
 constexpr Color kBanner   {  30,  95, 175, 240 };
 constexpr Color kBarBg    {   0,   0,   0, 235 };
@@ -516,32 +508,52 @@ void Draw() {
     LabelRight(kX + totalW - kPad, y0, counter, kText);
     y0 += kRowH;
 
+    // The garage list scrolls under its fixed header so the selection stays in view.
+    const int n = static_cast<int>(items.size());
+    const bool scrolls = g_page == kGaragePage && n - 1 > kGarageVisibleRows;
+    if (scrolls) {
+        int row = Sel() - 1; // position under the header
+        if (row < g_garageScroll) g_garageScroll = row;
+        if (row >= g_garageScroll + kGarageVisibleRows) g_garageScroll = row - kGarageVisibleRows + 1;
+        g_garageScroll = std::clamp(g_garageScroll, 0, n - 1 - kGarageVisibleRows);
+    } else {
+        g_garageScroll = 0;
+    }
+
     // Rows, flowing into the second column at the break.
     float x = kX, y = y0, bottom = y0;
-    for (size_t idx = 0; idx < items.size(); ++idx) {
+    for (int idx = 0; idx < n; ++idx) {
         const Item& it = items[idx];
+        if (scrolls && idx > 0 && (idx - 1 < g_garageScroll || idx - 1 >= g_garageScroll + kGarageVisibleRows))
+            continue;
         if (it.type == ItemType::ColumnBreak) {
             x += kColW + kColGap;
             y = y0;
             continue;
         }
-        DrawItem(it, x, y, static_cast<int>(idx) == Sel());
+        DrawItem(it, x, y, idx == Sel());
         y += kRowH;
         if (y > bottom) bottom = y;
     }
 
-    // Garage preview for the selected car: in the empty second column, or right of the menu once
-    // cars fill both columns.
+    // Scroll cue on the GARAGE header: how many rows are hidden above and below.
+    if (scrolls) {
+        int above = g_garageScroll, below = n - 1 - kGarageVisibleRows - g_garageScroll;
+        char more[32] = "";
+        if (above && below) std::snprintf(more, sizeof more, "%d above  %d below", above, below);
+        else if (above)     std::snprintf(more, sizeof more, "%d more above", above);
+        else if (below)     std::snprintf(more, sizeof more, "%d more below", below);
+        LabelRight(kX + kColW - kPad, y0, more, kDimText);
+    }
+
+    // Garage preview for the selected car, in the second column.
     // While the overwrite prompt is open it shows the car that would be overwritten.
     if (g_page == kGaragePage && (g_overwriteAsk >= 0 || Items()[Sel()].type == ItemType::Car)) {
         const auto& cars = GarageCars();
         int idx = g_overwriteAsk >= 0 ? g_overwriteAsk : Items()[Sel()].index;
         if (idx >= 0 && idx < static_cast<int>(cars.size())) {
-            bool twoColumns = false;
-            for (const Item& it : items) twoColumns |= it.type == ItemType::ColumnBreak;
-            float px = twoColumns ? kX + totalW + kPanelGap : kX + kColW + kColGap;
-            float panelBottom = DrawGaragePanel(cars[idx], idx, px, y0);
-            if (!twoColumns && panelBottom > bottom) bottom = panelBottom;
+            float panelBottom = DrawGaragePanel(cars[idx], idx, kX + kColW + kColGap, y0);
+            if (panelBottom > bottom) bottom = panelBottom;
         }
     }
 
