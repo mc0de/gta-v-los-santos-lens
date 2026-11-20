@@ -456,22 +456,53 @@ void ReleaseCalled() {
     g_calledIndex = -1;
 }
 
-// The previous car goes away if nobody would notice: it's empty (no player, companion or thief
-// inside) and off screen. Otherwise it's handed back to the game.
-void RetirePrevious(Ped player) {
-    if (g_called && Invoke<int>(N::DOES_ENTITY_EXIST, g_called) &&
-        !Invoke<int>(N::IS_PED_IN_VEHICLE, player, g_called, 0) &&
-        Invoke<int>(N::IS_VEHICLE_SEAT_FREE, g_called, -1) &&
-        Invoke<int>(N::GET_VEHICLE_NUMBER_OF_PASSENGERS, g_called) == 0 &&
-        !Invoke<int>(N::IS_ENTITY_ON_SCREEN, g_called)) {
-        RemoveBlip();
-        Invoke(N::SET_ENTITY_AS_MISSION_ENTITY, g_called, 1, 1);
-        Invoke(N::DELETE_VEHICLE, &g_called);
-        g_called = 0;
-        g_calledIndex = -1;
+// Previously called cars that were left empty. We keep holding them (no blip) so the game
+// doesn't despawn them the moment you look away, and hand them back once you're far away.
+std::vector<Vehicle> g_parked;
+constexpr float kParkedReleaseDist = 350.0f;
+constexpr size_t kMaxParked = 3;
+
+bool IsOccupied(Vehicle v) {
+    return !Invoke<int>(N::IS_VEHICLE_SEAT_FREE, v, -1) || Invoke<int>(N::GET_VEHICLE_NUMBER_OF_PASSENGERS, v) > 0;
+}
+
+void ReleaseVehicle(Vehicle v) {
+    if (Invoke<int>(N::DOES_ENTITY_EXIST, v)) Invoke(N::SET_VEHICLE_AS_NO_LONGER_NEEDED, &v);
+}
+
+// An empty previous car stays where you left it until you're far away (see ParkedTick).
+// One that someone is in (you, a companion, a thief) goes straight back to the game.
+void RetirePrevious() {
+    if (!g_called || !Invoke<int>(N::DOES_ENTITY_EXIST, g_called) || IsOccupied(g_called)) {
+        ReleaseCalled();
         return;
     }
-    ReleaseCalled();
+    RemoveBlip();
+    if (g_parked.size() >= kMaxParked) {
+        ReleaseVehicle(g_parked.front());
+        g_parked.erase(g_parked.begin());
+    }
+    g_parked.push_back(g_called);
+    g_called = 0;
+    g_calledIndex = -1;
+}
+
+// Releases parked cars once you're far from them, or as soon as someone gets in or they're wrecked.
+void ParkedTick(Ped player) {
+    if (g_parked.empty()) return;
+    Vec3 me = Invoke<Vec3>(N::GET_ENTITY_COORDS, player, 1);
+    for (size_t i = 0; i < g_parked.size();) {
+        Vehicle v = g_parked[i];
+        bool keep = false;
+        if (Invoke<int>(N::DOES_ENTITY_EXIST, v) && !Invoke<int>(N::IS_ENTITY_DEAD, v) && !IsOccupied(v)) {
+            Vec3 p = Invoke<Vec3>(N::GET_ENTITY_COORDS, v, 1);
+            float dx = p.x - me.x, dy = p.y - me.y, dz = p.z - me.z;
+            keep = dx * dx + dy * dy + dz * dz < kParkedReleaseDist * kParkedReleaseDist;
+        }
+        if (keep) { ++i; continue; }
+        ReleaseVehicle(v);
+        g_parked.erase(g_parked.begin() + i);
+    }
 }
 
 void AddCarBlip(Vehicle v, const std::string& name) {
@@ -526,7 +557,7 @@ void GarageCall(int index) {
         Notify(msg);
         return;
     }
-    RetirePrevious(player);
+    RetirePrevious();
     Invoke<int>(N::SET_VEHICLE_ON_GROUND_PROPERLY, v);
     ApplySavedCar(v, car);
     Invoke(N::SET_VEHICLE_DIRT_LEVEL, v, 0.0f);
@@ -545,6 +576,7 @@ void GarageCall(int index) {
 }
 
 void GarageTick(Ped player) {
+    ParkedTick(player);
     if (!g_called) return;
     if (!Invoke<int>(N::DOES_ENTITY_EXIST, g_called)) {
         RemoveBlip();
