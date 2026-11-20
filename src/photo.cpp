@@ -8,6 +8,9 @@
 namespace {
 
 constexpr int kPhotoW = 512, kPhotoH = 288;
+// drawTexture keeps a texture on screen this long after the last call, so a preview drawn just
+// before a capture would end up in the photo unless the capture waits it out.
+constexpr int kTextureLifeMs = 100;
 
 // Turns the scripted camera off and destroys it however TakeCarPhoto returns.
 struct CamGuard {
@@ -148,7 +151,9 @@ bool TakeCarPhoto(Vehicle v, const std::string& file) {
     Invoke(N::RENDER_SCRIPT_CAMS, 1, 0, 0, 1, 0);
 
     // A few frames so the camera cut and streaming settle; nothing of ours draws meanwhile.
-    for (int i = 0; i < 4; ++i) {
+    // Also outlast any garage preview photo still on screen (see kTextureLifeMs).
+    const ULONGLONG start = GetTickCount64();
+    for (int i = 0; i < 4 || GetTickCount64() - start < kTextureLifeMs + 50; ++i) {
         Invoke(N::HIDE_HUD_AND_RADAR_THIS_FRAME);
         scriptWait(0);
     }
@@ -170,6 +175,6 @@ bool DrawPhoto(const std::string& file, float x, float y, float w, float h) {
     if (it->second < 0) return false;
     // sizeY is measured in screen widths here (seen in-game), so convert from a screen-height fraction.
     const float aspect = AspectRatio();
-    drawTexture(it->second, 0, 0, 100, w, h / aspect, 0.5f, 0.5f, x, y, 0.0f, aspect, 1.0f, 1.0f, 1.0f, 1.0f);
+    drawTexture(it->second, 0, 0, kTextureLifeMs, w, h / aspect, 0.5f, 0.5f, x, y, 0.0f, aspect, 1.0f, 1.0f, 1.0f, 1.0f);
     return true;
 }
