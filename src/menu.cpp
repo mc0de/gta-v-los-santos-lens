@@ -179,7 +179,6 @@ std::vector<Item>& PageItems(Page page) {
         Toggle("Target animals", &g.aimAnimals),
         FloatRange("Range", &g.aimRange, 25, 1000, 25, "%.0f m"),
         IntRange("Aim zone", &g.aimFov, 5, 180, 5, "%d deg", "any"),
-        IntRange("Smoothing", &g.aimSmoothing, 1, 20, 1, "%d"),
 
         Header("MISC"),
         Toggle("Damage numbers", &g.damageNumbers),

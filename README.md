@@ -36,7 +36,7 @@ Other ESP options:
 - The current auto-aim target is always drawn, in magenta, even if its category is off.
 
 ### Auto-aim
-While you hold aim (right mouse), the camera locks onto a living ped you have clear line of sight to. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight; to switch, let go of aim and aim again. Auto-aim stays off while you hold a throwable (grenade, sticky bomb, molotov, etc.) so it doesn't spoil the throw arc.
+While you hold aim (right mouse), the camera locks onto a living ped you have clear line of sight to and points the crosshair straight at it every frame, with no smoothing or delay. Peds behind walls, vehicles or objects are skipped. The lock stays on one target until it dies or goes out of sight. To switch while aiming, press **Q** for the nearest target to the left of the current one or **E** for the nearest one to the right (only targets that pass the filters below and are in sight); a target you pick this way stays locked. While auto-aim is aiming, the game's own actions on Q and E (take cover, radio wheel, pick up, talk, horn) are turned off. Auto-aim stays off while you hold a throwable (grenade, sticky bomb, molotov, etc.) so it doesn't spoil the throw arc.
 
 **Who is targeted.** Hostiles (anyone fighting you, including cops chasing you and animals attacking you) are always targets. The toggles add the peaceful ones:
 - **Target cops**: cops, SWAT and army that aren't after you. Off by default.
@@ -50,7 +50,6 @@ While you hold aim (right mouse), the camera locks onto a living ped you have cl
 
 Other options:
 - **Aim at**: head or upper chest.
-- **Smoothing**: 1 snaps instantly; higher values glide the camera onto the target.
 
 ### Finder
 - **Collectibles**: orange markers and a tall beam on collectible props (spaceship parts, peyote plants, nuclear waste). The model list lives in the `[Collectibles]` section of `SPESP.ini`. The default model names are best-known values and haven't all been verified; fix or add entries there. Objects only exist near the player, so this finds items in your surroundings, not across the whole map.
@@ -89,6 +88,7 @@ Press **Delete** to open the menu. It's laid out in two columns (ESP and Finder 
 | F11 | Toggle vehicles |
 | Page Up | Toggle auto-aim |
 | Page Down | Switch aim point: head / body |
+| Q / E (while aiming) | Switch auto-aim target to the left / right |
 | End | Teleport to waypoint |
 | Insert | Skip game time forward (6 hours by default) |
 | Numpad + | Open / close the garage (on a car: Enter call, F favourite, P plate, X twice delete) |
@@ -101,7 +101,7 @@ A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | A
 
 Created next to `SPESP.asi` with defaults on first run. Edit it while the game runs and use **Reload settings file** in the menu to apply.
 
-- `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey. The garage key is `Garage=Add` (Numpad +).
+- `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey. The garage key is `Garage=Add` (Numpad +). `AimLeft=Q` / `AimRight=E` switch the auto-aim target; the game's own Q/E actions are only turned off while these keys are Q or E.
 - `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position and `SpeedoX` / `SpeedoY` for the speedometer position (0–1 screen fractions). `[ESP] VehicleTypes` is `All`, `None`, or a comma-separated list of the menu's class names (`Super, Sports, Sports Classics`). Values outside the menu's ranges are clamped, and spaces around `=` are ignored.
 - `[ESP.Hostiles]`, `[ESP.Cops]`, `[ESP.Pedestrians]`, `[ESP.Animals]`, `[ESP.Vehicles]`: the grid, with keys `Enabled`, `Box`, `Health`, `Distance`, `Labels`, `Tracers`.
 - `[Garage]`: `BlipSprite` (default 225, a car icon) and `BlipColour` (default 27, purple) for the called car's blip. These ids are best-known values and haven't been verified in-game; change them here if the icon or colour is wrong.
@@ -156,7 +156,7 @@ To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI p
 | `src/ui.*` | Drawing helpers (text, rects, sprites, 3D lines, bounding boxes), notifications, keyboard input |
 | `src/settings.*` | `Settings` struct and `SPESP.ini` load / save |
 | `src/esp.cpp` | Ped categories, ped / vehicle ESP, labels, threat arrows |
-| `src/aim.cpp` | Auto-aim target selection, line of sight, smoothing, aim zone |
+| `src/aim.cpp` | Auto-aim target selection, target switching, line of sight, aim zone |
 | `src/world.cpp` | Collectible / pickup finder, damage numbers, speedometer, teleport, skip time |
 | `src/garage.cpp` | Garage: saving a car's setup, `SPESP_garage.ini`, calling a car, its blip, favourites, plates |
 | `src/photo.*` | Garage photos: camera shot, window capture, PNG encoding, drawing them in the menu |

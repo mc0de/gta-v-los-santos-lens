@@ -121,19 +121,16 @@ float s_vehHeading = 0.0f, s_vehPitch = 0.0f;
 // follow the vehicle (its heading, its pitch on slopes) and the vehicle camera adds its own tilt,
 // and the pitch getter doesn't match what the setter applies. So steer by feedback instead:
 // measure the angle between the rendered camera (what's on screen, so the crosshair) and the
-// target, and add that error to the value we set last frame. Repeated each frame this settles
-// with the crosshair on the target whatever the offsets are.
+// target, and add that whole error to the value we set last frame, so the crosshair lands on the
+// target whatever the offsets are.
 //
-// Two guards keep the accumulator from running away: steering only happens while the gameplay
-// camera is the one on screen (a cinematic or scripted camera ignores the setter, so the error
-// would never shrink), and each frame's correction is capped.
-void AimAtFromVehicle(Ped target, float t) {
+// Steering only happens while the gameplay camera is the one on screen: a cinematic or scripted
+// camera ignores the setter, so the error would never shrink and the accumulator would run away.
+void AimAtFromVehicle(Ped target) {
     if (!Invoke<int>(N::IS_GAMEPLAY_CAM_RENDERING)) {
         s_vehAimActive = false;
         return;
     }
-    constexpr float kMaxStep = 30.0f; // degrees per frame
-
     Vec3 cam = Invoke<Vec3>(N::GET_FINAL_RENDERED_CAM_COORD);
     Vec3 rot = Invoke<Vec3>(N::GET_FINAL_RENDERED_CAM_ROT, 2);
     float heading, pitch;
@@ -144,21 +141,17 @@ void AimAtFromVehicle(Ped target, float t) {
         s_vehPitch = Invoke<float>(N::GET_GAMEPLAY_CAM_RELATIVE_PITCH);
         s_vehAimActive = true;
     }
-    float dh = (std::clamp)(WrapDegrees(heading - rot.z) * t, -kMaxStep, kMaxStep);
-    float dp = (std::clamp)((pitch - rot.x) * t, -kMaxStep, kMaxStep);
-    s_vehHeading = WrapDegrees(s_vehHeading + dh);
-    s_vehPitch = (std::clamp)(s_vehPitch + dp, -80.0f, 80.0f);
+    s_vehHeading = WrapDegrees(s_vehHeading + WrapDegrees(heading - rot.z));
+    s_vehPitch = (std::clamp)(s_vehPitch + (pitch - rot.x), -80.0f, 80.0f);
 
     Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_HEADING, s_vehHeading);
     Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_PITCH, s_vehPitch, 1.0f);
 }
 
-// Turns the gameplay camera (and therefore the crosshair) toward the target,
-// moving 1/smoothing of the remaining angle each frame.
+// Points the gameplay camera (and therefore the crosshair) straight at the target.
 void AimAt(Ped player, Ped target) {
-    float t = 1.0f / (std::max)(g.aimSmoothing, 1);
     if (Invoke<int>(N::IS_PED_IN_ANY_VEHICLE, player, 0)) {
-        AimAtFromVehicle(target, t);
+        AimAtFromVehicle(target);
         return;
     }
     s_vehAimActive = false;
@@ -167,14 +160,58 @@ void AimAt(Ped player, Ped target) {
     float heading, pitch;
     Angles(cam, AimPoint(target), heading, pitch);
 
-    float wantHeading = WrapDegrees(heading - Invoke<float>(N::GET_ENTITY_HEADING, player));
-    float wantPitch = pitch;
+    Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_HEADING, WrapDegrees(heading - Invoke<float>(N::GET_ENTITY_HEADING, player)));
+    Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_PITCH, pitch, 1.0f);
+}
 
-    float curHeading = Invoke<float>(N::GET_GAMEPLAY_CAM_RELATIVE_HEADING);
-    float curPitch = Invoke<float>(N::GET_GAMEPLAY_CAM_RELATIVE_PITCH);
+// Degrees between the directions from the camera to `a` and to `b`.
+float AngleBetween(const Vec3& from, const Vec3& a, const Vec3& b) {
+    float ax = a.x - from.x, ay = a.y - from.y, az = a.z - from.z;
+    float bx = b.x - from.x, by = b.y - from.y, bz = b.z - from.z;
+    float la = std::sqrt(ax * ax + ay * ay + az * az), lb = std::sqrt(bx * bx + by * by + bz * bz);
+    if (la < 0.001f || lb < 0.001f) return 0.0f;
+    float c = (ax * bx + ay * by + az * bz) / (la * lb);
+    return std::acos((std::min)((std::max)(c, -1.0f), 1.0f)) * kRadToDeg;
+}
 
-    Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_HEADING, curHeading + WrapDegrees(wantHeading - curHeading) * t);
-    Invoke(N::SET_GAMEPLAY_CAM_RELATIVE_PITCH, curPitch + (wantPitch - curPitch) * t, 1.0f);
+// The visible target nearest to the current one on its left (dir = +1) or right (dir = -1),
+// or 0 if there's none on that side. Sides are by horizontal angle as seen from the camera.
+Ped NeighbourTarget(Ped player, const Vec3& me, const View& view, Ped current, int dir) {
+    struct Option { Ped ped; float sep; };
+    static Option options[512];
+    int n = 0;
+
+    Vec3 curPoint = AimPoint(current);
+    float curHeading, pitch;
+    Angles(view.pos, curPoint, curHeading, pitch);
+
+    for (int i = 0; i < g_pedCount; ++i) {
+        Candidate c;
+        if (g_peds[i] == current || !IsAimCandidate(g_peds[i], player, me, view, c)) continue;
+        Vec3 point = AimPoint(c.ped);
+        float heading;
+        Angles(view.pos, point, heading, pitch);
+        // GTA headings grow counter-clockwise, so a larger heading is further left.
+        if (WrapDegrees(heading - curHeading) * dir <= 0.0f) continue;
+        options[n++] = { c.ped, AngleBetween(view.pos, curPoint, point) };
+    }
+    std::sort(options, options + n, [](const Option& a, const Option& b) { return a.sep < b.sep; });
+
+    for (int i = 0; i < n; ++i) {
+        if (HasLineOfSight(player, options[i].ped))
+            return options[i].ped;
+    }
+    return 0;
+}
+
+// Game actions on the target-switch keys, turned off while auto-aim is aiming so pressing them
+// doesn't also take cover, open the radio wheel or sound the horn. Only the default PC bindings
+// of Q and E are known; other keys are left alone.
+void BlockSwitchKeyActions(int vk) {
+    static const int kQ[] = { 44, 85 };         // INPUT_COVER, INPUT_VEH_RADIO_WHEEL
+    static const int kE[] = { 38, 46, 51, 86 }; // INPUT_PICKUP, INPUT_TALK, INPUT_CONTEXT, INPUT_VEH_HORN
+    if (vk == 'Q') for (int c : kQ) Invoke(N::DISABLE_CONTROL_ACTION, 0, c, 1);
+    if (vk == 'E') for (int c : kE) Invoke(N::DISABLE_CONTROL_ACTION, 0, c, 1);
 }
 
 // Grenades, sticky bombs, molotovs etc. are thrown in an arc, so locking the camera onto a
@@ -191,13 +228,20 @@ bool HoldingThrowable(Ped player) {
 
 
 // Holds the current target while it stays valid and visible; re-acquires otherwise.
-// In Nearest mode a peaceful lock is re-checked a few times a second, so a hostile takes over.
+// In Nearest mode a peaceful lock is re-checked a few times a second, so a hostile takes over,
+// unless you picked that target yourself with the switch keys.
 void AimTick(Ped player, const Vec3& me) {
+    static bool s_manual = false; // the current lock was chosen with the switch keys
     if (!Invoke<int>(N::IS_PLAYER_FREE_AIMING, Invoke<Player>(N::PLAYER_ID)) || HoldingThrowable(player)) {
         g_aimTarget = 0;
+        s_manual = false;
         s_vehAimActive = false;
         return;
     }
+    BlockSwitchKeyActions(g.keys.aimLeft);
+    BlockSwitchKeyActions(g.keys.aimRight);
+    // Polled every aiming frame (not only with a lock) so a press is never seen late.
+    bool left = KeyPressed(g.keys.aimLeft), right = KeyPressed(g.keys.aimRight);
 
     static int s_recheck = 0;
     View view = ReadView();
@@ -205,10 +249,18 @@ void AimTick(Ped player, const Vec3& me) {
     bool valid = g_aimTarget && IsAimCandidate(g_aimTarget, player, me, view, cur) && HasLineOfSight(player, g_aimTarget);
     if (!valid) {
         g_aimTarget = FindAimTarget(player, me, view);
-    } else if (g.aimPick == AimPick::Nearest && !cur.hostile && ++s_recheck >= 10) {
-        s_recheck = 0;
-        Ped best = FindAimTarget(player, me, view);
-        if (best && IsThreat(best, player)) g_aimTarget = best;
+        s_manual = false;
+    } else {
+        int dir = left == right ? 0 : left ? 1 : -1;
+        Ped next = dir ? NeighbourTarget(player, me, view, g_aimTarget, dir) : 0;
+        if (next) {
+            g_aimTarget = next;
+            s_manual = true;
+        } else if (g.aimPick == AimPick::Nearest && !cur.hostile && !s_manual && ++s_recheck >= 10) {
+            s_recheck = 0;
+            Ped best = FindAimTarget(player, me, view);
+            if (best && IsThreat(best, player)) g_aimTarget = best;
+        }
     }
 
     if (g_aimTarget)

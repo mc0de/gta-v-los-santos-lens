@@ -108,7 +108,6 @@ void ClampSettings() {
     Clamp(g.letterCount, 1, 10);
     Clamp(g.aimRange, 25.0f, 1000.0f);
     Clamp(g.aimFov, 5, 180);
-    Clamp(g.aimSmoothing, 1, 20);
     Clamp(g.skipHours, 1, 23);
     Clamp(g.speedoX, 0.0f, 1.0f);
     Clamp(g.speedoY, 0.0f, 1.0f);
@@ -224,7 +223,7 @@ void DeleteObsoleteKeys() {
         "Tracers", "IgnoreAnimals", "HostilesOnly",
     };
     for (const char* k : kKeys) WritePrivateProfileStringA("Keys", k, nullptr, g_path.c_str());
-    static const char* const kAim[] = { "Priority", "IgnoreCops", "IgnoreAnimals", "ShowFov" };
+    static const char* const kAim[] = { "Priority", "IgnoreCops", "IgnoreAnimals", "ShowFov", "Smoothing" };
     for (const char* k : kEsp)  WritePrivateProfileStringA("ESP", k, nullptr, g_path.c_str());
     for (const char* k : kAim)  WritePrivateProfileStringA("Aim", k, nullptr, g_path.c_str());
     static const char* const kMisc[] = { "DamageX", "DamageY" };
@@ -295,6 +294,8 @@ void ReloadSettings() {
     ReadKey("SkipHour", g.keys.skipTime); // old name
     ReadKey("SkipTime", g.keys.skipTime);
     ReadKey("Garage", g.keys.garage);
+    ReadKey("AimLeft", g.keys.aimLeft);
+    ReadKey("AimRight", g.keys.aimRight);
 
     ReadBool("ESP", "Enabled", g.esp);
     ReadBool("ESP", "ShowDead", g.showDead);
@@ -324,7 +325,6 @@ void ReloadSettings() {
     ReadBool("Aim", "TargetAnimals", g.aimAnimals);
     ReadFloat("Aim", "Range", g.aimRange);
     ReadInt("Aim", "Fov", g.aimFov);
-    ReadInt("Aim", "Smoothing", g.aimSmoothing);
 
     ReadBool("Misc", "DamageNumbers", g.damageNumbers);
     ReadInt("Misc", "SkipHours", g.skipHours);
@@ -354,6 +354,8 @@ void SaveSettings() {
     WriteKey("Teleport", g.keys.teleport);
     WriteKey("SkipTime", g.keys.skipTime);
     WriteKey("Garage", g.keys.garage);
+    WriteKey("AimLeft", g.keys.aimLeft);
+    WriteKey("AimRight", g.keys.aimRight);
 
     WriteBool("ESP", "Enabled", g.esp);
     WriteBool("ESP", "ShowDead", g.showDead);
@@ -383,7 +385,6 @@ void SaveSettings() {
     WriteBool("Aim", "TargetAnimals", g.aimAnimals);
     WriteFloat("Aim", "Range", g.aimRange);
     WriteInt("Aim", "Fov", g.aimFov);
-    WriteInt("Aim", "Smoothing", g.aimSmoothing);
 
     WriteBool("Misc", "DamageNumbers", g.damageNumbers);
     WriteInt("Misc", "SkipHours", g.skipHours);

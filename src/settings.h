@@ -19,6 +19,8 @@ struct Keys {
     int teleport         = VK_END;
     int skipTime         = VK_INSERT;
     int garage           = VK_ADD;   // Numpad + (F1-F3 are the Rockstar Editor)
+    int aimLeft          = 'Q';      // while aiming: switch to the next target on the left
+    int aimRight         = 'E';      // ... and on the right
 };
 
 // What the ESP draws for one category of target.
@@ -91,7 +93,6 @@ struct Settings {
     bool aimAnimals = false;
     float aimRange = 250.0f;
     int aimFov = 180;       // max degrees from the crosshair; 180 = anywhere
-    int aimSmoothing = 1;   // 1 = snap, higher = slower glide
 
     // Misc
     bool damageNumbers = true;
