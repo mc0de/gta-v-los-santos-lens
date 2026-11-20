@@ -95,7 +95,18 @@ void DoReload();
 void DoClearBestSpeeds();
 constexpr int kGarageColumnRows = 20; // cars past this continue in the second column
 bool g_pendingSave = false; // saving waits for the photo camera, so it runs after the input pass
-void DoSaveCar() { g_pendingSave = true; }
+bool g_pendingOverwrite = false;
+// Saving the called car asks first: overwrite its entry (Yes) or save a new one (No, the default).
+int g_overwriteAsk = -1;     // garage entry the prompt is about, or -1 when no prompt is open
+bool g_overwriteYes = false;
+void DoSaveCar() {
+    g_overwriteAsk = GarageOverwriteTarget();
+    g_overwriteYes = false;
+    if (g_overwriteAsk < 0) {
+        g_pendingSave = true;
+        g_pendingOverwrite = false;
+    }
+}
 
 const char* GarageSummary() {
     static char buf[16];
@@ -110,12 +121,21 @@ std::vector<Item>& GarageItems() {
     static std::vector<Item> items;
     items.clear();
     items.push_back(Header("GARAGE"));
-    items.push_back(Action("Save current car", DoSaveCar));
     const auto& cars = GarageCars();
-    if (cars.empty()) items.push_back(Header("No saved cars"));
+    // The called car comes first so it can be called again quickly; it isn't repeated below.
+    int called = GarageCalledIndex();
+    if (called < 0 || called >= static_cast<int>(cars.size())) called = -1;
     int row = 0;
+    if (called >= 0) {
+        items.push_back(CarRow(cars[called], called));
+        ++row;
+    }
+    items.push_back(Action(g_overwriteAsk >= 0 ? "Overwrite saved car?" : "Save current car", DoSaveCar));
+    ++row;
+    if (cars.empty()) { items.push_back(Header("No saved cars")); ++row; }
     for (int i : GarageDisplayOrder()) {
-        if (row++ == kGarageColumnRows) {
+        if (i == called) continue;
+        if (row++ == kGarageColumnRows + 1) {
             items.push_back(ColumnBreak());
             items.push_back(Header(""));
         }
@@ -285,6 +305,7 @@ void Adjust(Item& it, int dir) {
                 g_page = it.page;
                 g_garageFromHotkey = false;
                 if (g_page == kGaragePage) { // later keys this frame index the new page
+                    g_pageSel[kGaragePage] = 1; // top row: the called car if there is one, else Save
                     RefreshGaragePage();
                     ClampSelection();
                 }
@@ -320,6 +341,10 @@ void FormatValue(const Item& it, bool selected, char* buf, size_t n) {
         case ItemType::Submenu:
             std::snprintf(buf, n, "%s >", it.value ? it.value() : "");
             return;
+        case ItemType::Action:
+            if (it.action != DoSaveCar || g_overwriteAsk < 0) { buf[0] = '\0'; return; }
+            std::snprintf(v, sizeof v, "%s", g_overwriteYes ? "Yes" : "No");
+            break;
         case ItemType::Car: {
             if (selected && g_deleteArmed == Sel()) {
                 std::snprintf(buf, n, "X again to delete");
@@ -331,7 +356,8 @@ void FormatValue(const Item& it, bool selected, char* buf, size_t n) {
                 std::snprintf(buf, n, "(invalid)");
                 return;
             }
-            std::snprintf(buf, n, "%s%s", plate, it.index == GarageCalledIndex() ? "  (out)" : "");
+            // The called car's row says so instead of its plate (the preview still shows the plate).
+            std::snprintf(buf, n, "%s", it.index == GarageCalledIndex() ? "CALLED" : plate);
             return;
         }
         default:               buf[0] = '\0'; return;
@@ -434,7 +460,8 @@ void DrawItem(const Item& it, float x, float y, bool selected) {
     } else {
         char buf[64];
         FormatValue(it, selected, buf, sizeof buf);
-        if (buf[0]) LabelRight(right, y, buf, fg);
+        bool calledTag = it.type == ItemType::Car && it.index == GarageCalledIndex() && !selected;
+        if (buf[0]) LabelRight(right, y, buf, calledTag ? kHudBlue : fg);
     }
 }
 
@@ -462,7 +489,7 @@ float DrawGaragePanel(const SavedCar& car, int index, float x, float top) {
     if (*brand || *clsName) row(brand, kGreen, clsName, kYellow);
     row("Plate", kDimText, car.plate.c_str(), kText);
     if (car.favorite || index == GarageCalledIndex())
-        row(car.favorite ? "* Favorite" : "", kYellow, index == GarageCalledIndex() ? "Out now" : "", kCyan);
+        row(car.favorite ? "* Favorite" : "", kYellow, index == GarageCalledIndex() ? "Called" : "", kCyan);
     if (!car.valid) row("Model not found in the game", kRed, nullptr, kText);
     return y;
 }
@@ -505,9 +532,10 @@ void Draw() {
 
     // Garage preview for the selected car: in the empty second column, or right of the menu once
     // cars fill both columns.
-    if (g_page == kGaragePage && Items()[Sel()].type == ItemType::Car) {
+    // While the overwrite prompt is open it shows the car that would be overwritten.
+    if (g_page == kGaragePage && (g_overwriteAsk >= 0 || Items()[Sel()].type == ItemType::Car)) {
         const auto& cars = GarageCars();
-        int idx = Items()[Sel()].index;
+        int idx = g_overwriteAsk >= 0 ? g_overwriteAsk : Items()[Sel()].index;
         if (idx >= 0 && idx < static_cast<int>(cars.size())) {
             bool twoColumns = false;
             for (const Item& it : items) twoColumns |= it.type == ItemType::ColumnBreak;
@@ -520,7 +548,9 @@ void Draw() {
     // Help bar under the taller column.
     RowRect(kX, bottom, totalW, kBarBg);
     const char* help =
-        g_page == kMainPage ? "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close"
+        g_page == kGaragePage && g_overwriteAsk >= 0
+            ? "Left/Right: Yes = overwrite, No = save as new    Enter: confirm    Backspace: cancel"
+        : g_page == kMainPage ? "Up/Down: move    Left/Right: change    Enter: toggle    Backspace/Delete: close"
         : g_page != kGaragePage ? "Up/Down: move    Enter: toggle    Backspace: back    Delete: close"
         : g_garageFromHotkey ? "Up/Down: move    Enter: call    F: favorite    P: plate    X: delete    Backspace: close"
                              : "Up/Down: move    Enter: call    F: favorite    P: plate    X: delete    Backspace: back";
@@ -575,6 +605,7 @@ void MenuToggle() {
     g_page = kMainPage;
     g_garageFromHotkey = false;
     g_deleteArmed = -1;
+    g_overwriteAsk = -1;
     if (!g_open) SaveSettings();
 }
 
@@ -585,8 +616,10 @@ void MenuOpenGarage() {
     }
     g_open = true;
     g_page = kGaragePage;
+    g_pageSel[kGaragePage] = 1; // top row: the called car if there is one, else Save
     g_garageFromHotkey = true;
     g_deleteArmed = -1;
+    g_overwriteAsk = -1;
 }
 
 void MenuTick() {
@@ -602,7 +635,7 @@ void MenuTick() {
     }
     if (g_pendingSave) {
         g_pendingSave = false;
-        GarageSaveCurrent();
+        GarageSaveCurrent(g_pendingOverwrite);
     }
     if (g_pendingPlate >= 0) {
         int index = g_pendingPlate;
@@ -612,9 +645,25 @@ void MenuTick() {
     if (!g_open) return;
 
     BlockGameInput();
+    if (g_page != kGaragePage) g_overwriteAsk = -1;
     if (g_page == kGaragePage) {
         RefreshGaragePage();
         ClampSelection();
+    }
+
+    // The overwrite prompt takes all keys until it's answered or cancelled.
+    if (g_overwriteAsk >= 0) {
+        if (KeyRepeat(VK_LEFT) || KeyRepeat(VK_RIGHT)) g_overwriteYes = !g_overwriteYes;
+        if (KeyPressed(VK_RETURN)) {
+            g_pendingSave = true;
+            g_pendingOverwrite = g_overwriteYes;
+            g_overwriteAsk = -1;
+        } else if (KeyPressed(VK_BACK) || KeyPressed(VK_UP) || KeyPressed(VK_DOWN)) {
+            g_overwriteAsk = -1;
+        }
+        RefreshGaragePage();
+        Draw();
+        return;
     }
 
     // Items() is looked up per key: opening a submenu switches pages mid-pass.

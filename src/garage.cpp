@@ -305,7 +305,14 @@ void GarageLoad() {
     }
 }
 
-bool GarageSaveCurrent() {
+int GarageOverwriteTarget() {
+    Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
+    if (g_calledIndex < 0 || g_calledIndex >= static_cast<int>(g_cars.size())) return -1;
+    if (!Invoke<int>(N::IS_PED_IN_ANY_VEHICLE, player, 0)) return -1;
+    return IsCalledCar(Invoke<Vehicle>(N::GET_VEHICLE_PED_IS_IN, player, 0)) ? g_calledIndex : -1;
+}
+
+bool GarageSaveCurrent(bool overwrite) {
     Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
     if (!Invoke<int>(N::IS_PED_IN_ANY_VEHICLE, player, 0)) {
         Notify("Get in a car to save it");
@@ -317,8 +324,8 @@ bool GarageSaveCurrent() {
         return false;
     }
 
-    int called = GarageCalledIndex();
-    bool update = called >= 0 && called < static_cast<int>(g_cars.size()) && IsCalledCar(v);
+    int called = GarageOverwriteTarget();
+    bool update = overwrite && called >= 0;
     if (!update && static_cast<int>(g_cars.size()) >= kGarageMax) {
         Notify("Garage is full (40 cars)");
         return false;
@@ -342,6 +349,8 @@ bool GarageSaveCurrent() {
         std::snprintf(msg, sizeof msg, "Updated %s%s", car.name.c_str(), photo ? "" : " (no photo)");
     } else {
         g_cars.push_back(car);
+        // Saved as a copy of the called car: the car you're in is now this entry.
+        if (called >= 0) g_calledIndex = static_cast<int>(g_cars.size()) - 1;
         std::snprintf(msg, sizeof msg, "Saved %s%s", car.name.c_str(), photo ? "" : " (no photo)");
     }
     if (!WriteGarage()) {

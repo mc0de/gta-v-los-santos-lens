@@ -82,8 +82,12 @@ struct SavedCar {
 constexpr int kGarageMax = 40;
 const std::vector<SavedCar>& GarageCars();
 void GarageLoad();                // reads SPESP_garage.ini
-bool GarageSaveCurrent();         // saves (or updates) the car the player is in and takes its photo;
-                                  // notifies. Calls scriptWait: run it deferred.
+// Saves the car the player is in and takes its photo; notifies. When it's the called car,
+// overwrite updates its entry and otherwise it's added as a new one (which the called car then
+// belongs to). Calls scriptWait: run it deferred.
+bool GarageSaveCurrent(bool overwrite);
+// Garage entry that saving now would overwrite (the player is in the called car), or -1.
+int GarageOverwriteTarget();
 void GarageDelete(int index);
 void GarageCall(int index);       // waits for the model to stream in: call from the deferred path only
 void GarageTick(Ped player);
