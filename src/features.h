@@ -78,7 +78,6 @@ struct SavedCar {
     SavedCar() { for (int& m : mods) m = -1; for (int& e : extras) e = -1; }
 };
 
-constexpr int kGarageMax = 40;
 const std::vector<SavedCar>& GarageCars();
 void GarageLoad();                // reads SPESP_garage.ini
 // Saves the car the player is in and takes its photo; notifies. When it's the called car,

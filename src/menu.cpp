@@ -3,6 +3,7 @@
 #include "photo.h"
 #include <algorithm>
 #include <cstdio>
+#include <deque>
 #include <initializer_list>
 #include <string>
 #include <vector>
@@ -58,15 +59,16 @@ Item Submenu(const char* label, Page page, const char* (*value)()) {
 }
 
 // Favourites get a star in front of the name; the labels live as long as the garage list.
-const char* CarLabel(const SavedCar& car) {
+// One slot per car index; a deque keeps earlier slots in place as it grows.
+const char* CarLabel(const SavedCar& car, int index) {
     if (!car.favorite) return car.name.c_str();
-    static std::string labels[kGarageMax];
-    static int next = 0;
-    std::string& s = labels[next++ % kGarageMax];
+    static std::deque<std::string> labels;
+    while (static_cast<int>(labels.size()) <= index) labels.emplace_back();
+    std::string& s = labels[index];
     s = "* " + car.name;
     return s.c_str();
 }
-Item CarRow(const SavedCar& car, int index) { Item it{ ItemType::Car, CarLabel(car) }; it.index = index; return it; }
+Item CarRow(const SavedCar& car, int index) { Item it{ ItemType::Car, CarLabel(car, index) }; it.index = index; return it; }
 
 Item IntRange(const char* label, int* v, int min, int max, int step, const char* fmt, const char* maxLabel = nullptr) {
     Item it{ ItemType::Int, label };

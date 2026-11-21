@@ -295,12 +295,16 @@ void GarageLoad() {
     std::string path = GaragePath();
     g_cars.clear();
     g_calledIndex = -1; // the file may have been edited, so entry numbers can't be trusted
+    // No cap on the number of cars: grow the buffer until the section list fits
+    // (a truncated result comes back as size - 2).
     std::vector<char> names(16 * 1024);
-    DWORD len = GetPrivateProfileSectionNamesA(names.data(), static_cast<DWORD>(names.size()), path.c_str());
+    DWORD len;
+    while ((len = GetPrivateProfileSectionNamesA(names.data(), static_cast<DWORD>(names.size()), path.c_str()))
+           >= names.size() - 2)
+        names.resize(names.size() * 2);
     // Section names come back as "Car1\0Car2\0\0", in file order.
     for (const char* p = names.data(); p < names.data() + len && *p; p += std::strlen(p) + 1) {
         if (_strnicmp(p, "Car", 3) != 0) continue;
-        if (g_cars.size() >= kGarageMax) break;
         g_cars.push_back(ReadCar(path, p));
     }
 }
@@ -326,10 +330,6 @@ bool GarageSaveCurrent(bool overwrite) {
 
     int called = GarageOverwriteTarget();
     bool update = overwrite && called >= 0;
-    if (!update && static_cast<int>(g_cars.size()) >= kGarageMax) {
-        Notify("Garage is full (40 cars)");
-        return false;
-    }
 
     SavedCar car = Capture(v);
     char file[40];
