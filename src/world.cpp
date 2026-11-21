@@ -15,7 +15,7 @@ namespace {
 
 // ---- Collectible / pickup finder ----
 
-struct Found { Entity entity; std::string label; bool collectible; Color color; };
+struct Found { Entity entity; std::string label; Color color; };
 
 // Pickup colours by type. Orange is kept for collectibles.
 constexpr Color kPickupWeapon  { 255,  60,  60, 240 }; // red
@@ -90,20 +90,20 @@ void Scan() {
         Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, pickups[i]);
         if (g.collectibles) {
             if (const char* label = FindLabel(g_collectibleHashes, model)) {
-                g_found.push_back({ pickups[i], label, true, kOrange });
+                g_found.push_back({ pickups[i], label, kOrange });
                 continue;
             }
         }
         if (!g.pickups) continue;
         if (const char* weapon = WeaponLabelForModel(model)) {
-            g_found.push_back({ pickups[i], weapon, false, kPickupWeapon });
+            g_found.push_back({ pickups[i], weapon, kPickupWeapon });
         } else if (const char* label = FindLabel(g_pickupHashes, model)) {
-            g_found.push_back({ pickups[i], label, false, PickupColor(label) });
+            g_found.push_back({ pickups[i], label, PickupColor(label) });
         } else {
             // Unknown model: show its hash so it can be named in the ini's [Pickups] section.
             char buf[32];
             std::snprintf(buf, sizeof buf, "Pickup 0x%08X", static_cast<unsigned>(model));
-            g_found.push_back({ pickups[i], buf, false, kPickupUnknown });
+            g_found.push_back({ pickups[i], buf, kPickupUnknown });
         }
     }
 
@@ -113,7 +113,7 @@ void Scan() {
         for (int i = 0; i < count; ++i) {
             Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
             if (const char* label = FindLabel(g_collectibleHashes, model))
-                if (!AlreadyFound(objects[i])) g_found.push_back({ objects[i], label, true, kOrange });
+                if (!AlreadyFound(objects[i])) g_found.push_back({ objects[i], label, kOrange });
         }
     }
 }
@@ -165,13 +165,12 @@ void FinderTick(const Vec3& me) {
         float dist = Distance(me, pos);
         if (dist > g.finderRange) continue;
 
-        // A tall beam so items are visible from a distance and through clutter. Collectibles are
-        // often tucked away, so theirs is taller and drawn over terrain and buildings.
+        // A tall beam so items are visible from a distance and through clutter. A plain world line:
+        // OverlayLine (drawn just in front of the camera) jitters on beams this long.
         Color c = f.color;
         Vec3 top = pos;
-        top.z += f.collectible ? 150.0f : 40.0f;
-        if (f.collectible) OverlayLine(pos, top, WithAlpha(c, 0.8f));
-        else               Line3D(pos, top, WithAlpha(c, 0.6f));
+        top.z += 40.0f;
+        Line3D(pos, top, WithAlpha(c, 0.6f));
 
         // Label at the beam's base if visible, otherwise partway up so hidden ones still get one.
         float sx, sy;
