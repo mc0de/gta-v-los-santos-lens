@@ -45,6 +45,62 @@ void OverlayLine(const Vec3& a, const Vec3& b, Color c) {
     Line3D(pull(a), pull(b), c);
 }
 
+namespace {
+
+// A 2D line from rects. Each piece covers the line's major axis and steps by at most one
+// thickness along the minor axis, so slanted lines come out as fine, gapless staircases.
+void ScreenLine2D(float x0, float y0, float x1, float y1, Color c, float thick) {
+    const float aspect = AspectRatio();
+    const float dx = (x1 - x0) * aspect, dy = y1 - y0; // in screen-height units
+    const float adx = std::fabs(dx), ady = std::fabs(dy);
+    const int n = std::clamp(static_cast<int>(std::ceil((std::min)(adx, ady) / thick)), 1, 256);
+    for (int i = 0; i < n; ++i) {
+        float ta = float(i) / n, tb = float(i + 1) / n;
+        float xa = x0 + (x1 - x0) * ta, xb = x0 + (x1 - x0) * tb;
+        float ya = y0 + dy * ta, yb = y0 + dy * tb;
+        if (ady >= adx) Rect((xa + xb) * 0.5f, (ya + yb) * 0.5f, thick / aspect, std::fabs(yb - ya) + thick * 0.5f, c);
+        else            Rect((xa + xb) * 0.5f, (ya + yb) * 0.5f, std::fabs(xb - xa) + thick * 0.5f / aspect, thick, c);
+    }
+}
+
+} // namespace
+
+void ScreenLine(const Vec3& a, const Vec3& b, Color c) {
+    constexpr int kSamples = 24;
+    constexpr float kThick = 0.0012f;
+    auto at = [&](float t) {
+        Vec3 p = a;
+        p.x += (b.x - a.x) * t; p.y += (b.y - a.y) * t; p.z += (b.z - a.z) * t;
+        return p;
+    };
+    auto visible = [&](float t, float& sx, float& sy) {
+        Vec3 p = at(t);
+        return WorldToScreen(p.x, p.y, p.z, sx, sy);
+    };
+
+    // The on-screen part of a straight line is one stretch: find it by sampling, then narrow
+    // each end down to the screen edge.
+    float sx, sy;
+    int first = -1, last = -1;
+    for (int i = 0; i <= kSamples; ++i)
+        if (visible(float(i) / kSamples, sx, sy)) { if (first < 0) first = i; last = i; }
+    if (first < 0) return;
+    auto refine = [&](float in, float out) { // in: visible, out: not
+        for (int k = 0; k < 10; ++k) {
+            float mid = (in + out) * 0.5f;
+            if (visible(mid, sx, sy)) in = mid; else out = mid;
+        }
+        return in;
+    };
+    float t0 = float(first) / kSamples, t1 = float(last) / kSamples;
+    if (first > 0) t0 = refine(t0, float(first - 1) / kSamples);
+    if (last < kSamples) t1 = refine(t1, float(last + 1) / kSamples);
+
+    float x0, y0, x1, y1;
+    if (!visible(t0, x0, y0) || !visible(t1, x1, y1)) return;
+    ScreenLine2D(x0, y0, x1, y1, c, kThick);
+}
+
 void Text(float x, float y, const char* s, Color c, float scale, bool centre, int font, bool outline) {
     Invoke(N::SET_TEXT_FONT, font);
     Invoke(N::SET_TEXT_SCALE, 0.0f, scale);

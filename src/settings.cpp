@@ -13,17 +13,29 @@ const char* const kVehicleClasses[kVehicleClassCount] = {
     "Emergency", "Military", "Commercial", "Trains", "Open Wheel",
 };
 
-const char* VehicleTypesSummary() {
+const char* const kPickupTypes[kPickupTypeCount] = {
+    "Weapons", "Health", "Armour", "Ammo", "Cash", "Other", "Unknown",
+};
+
+namespace {
+
+template <size_t N>
+const char* TypeSetSummary(const std::array<bool, N>& set, const char* const (&names)[N]) {
     int count = 0, last = 0;
-    for (int i = 0; i < kVehicleClassCount; ++i)
-        if (g.vehTypes[i]) { ++count; last = i; }
-    if (count == kVehicleClassCount) return "All";
+    for (size_t i = 0; i < N; ++i)
+        if (set[i]) { ++count; last = static_cast<int>(i); }
+    if (count == static_cast<int>(N)) return "All";
     if (count == 0) return "None";
-    if (count == 1) return kVehicleClasses[last];
+    if (count == 1) return names[last];
     static char buf[16];
     std::snprintf(buf, sizeof buf, "%d types", count);
     return buf;
 }
+
+} // namespace
+
+const char* VehicleTypesSummary() { return TypeSetSummary(g.vehTypes, kVehicleClasses); }
+const char* PickupTypesSummary()  { return TypeSetSummary(g.pickupTypes, kPickupTypes); }
 
 namespace {
 
@@ -193,8 +205,9 @@ void WriteEnum(const char* sec, const char* key, E v, const char* const (&names)
     Write(sec, key, names[static_cast<size_t>(v)]);
 }
 
-// "All", "None", or a comma-separated list of class names ("Super, Sports"). Unknown names are skipped.
-void ReadVehicleTypes(const char* sec, const char* key, VehicleClassSet& v) {
+// "All", "None", or a comma-separated list of type names ("Super, Sports"). Unknown names are skipped.
+template <size_t N>
+void ReadTypeSet(const char* sec, const char* key, std::array<bool, N>& v, const char* const (&names)[N]) {
     std::string s = Read(sec, key);
     if (s.empty() || _stricmp(s.c_str(), "all") == 0) return;
     v.fill(false);
@@ -203,21 +216,22 @@ void ReadVehicleTypes(const char* sec, const char* key, VehicleClassSet& v) {
         size_t comma = s.find(',', start);
         if (comma == std::string::npos) comma = s.size();
         std::string name = Trim(s.substr(start, comma - start));
-        for (int i = 0; i < kVehicleClassCount; ++i)
-            if (_stricmp(name.c_str(), kVehicleClasses[i]) == 0) v[i] = true;
+        for (size_t i = 0; i < N; ++i)
+            if (_stricmp(name.c_str(), names[i]) == 0) v[i] = true;
         start = comma + 1;
     }
 }
 
-void WriteVehicleTypes(const char* sec, const char* key, const VehicleClassSet& v) {
+template <size_t N>
+void WriteTypeSet(const char* sec, const char* key, const std::array<bool, N>& v, const char* const (&names)[N]) {
     std::string s;
-    int count = 0;
-    for (int i = 0; i < kVehicleClassCount; ++i) {
+    size_t count = 0;
+    for (size_t i = 0; i < N; ++i) {
         if (!v[i]) continue;
         if (count++) s += ", ";
-        s += kVehicleClasses[i];
+        s += names[i];
     }
-    Write(sec, key, count == kVehicleClassCount ? "All" : count == 0 ? "None" : s);
+    Write(sec, key, count == N ? "All" : count == 0 ? "None" : s);
 }
 
 void ReadStyle(const char* sec, EspStyle& s) {
@@ -263,7 +277,7 @@ void MigrateLetterScraps() {
     if (letters.empty()) return;
     bool on = false;
     ReadBool("Finder", "Letters", on);
-    if (on) g.collectibles = true;
+    if (on) g.collectibles.enabled = true;
     for (const auto& c : g.collectibleModels)
         if (_stricmp(c.model.c_str(), "prop_ld_scrap") == 0) return;
     g.collectibleModels.insert(g.collectibleModels.begin(), kDefaultCollectibles[0]);
@@ -353,15 +367,22 @@ void ReloadSettings() {
     ReadBool("ESP", "ThreatArrows", g.threatArrows);
     ReadFloat("ESP", "PedRange", g.pedRange);
     ReadFloat("ESP", "VehicleRange", g.vehRange);
-    ReadVehicleTypes("ESP", "VehicleTypes", g.vehTypes);
+    ReadTypeSet("ESP", "VehicleTypes", g.vehTypes, kVehicleClasses);
     ReadStyle("ESP.Hostiles", g.hostiles);
     ReadStyle("ESP.Animals", g.animals);
     ReadStyle("ESP.Cops", g.cops);
     ReadStyle("ESP.Pedestrians", g.pedestrians);
     ReadStyle("ESP.Vehicles", g.vehicles);
 
-    ReadBool("Finder", "Collectibles", g.collectibles);
-    ReadBool("Finder", "Pickups", g.pickups);
+    ReadBool("Finder", "Collectibles", g.collectibles.enabled);
+    ReadBool("Finder", "CollectiblesThroughWalls", g.collectibles.throughWalls);
+    ReadBool("Finder", "CollectibleBeams", g.collectibles.beams);
+    ReadBool("Finder", "CollectibleBeamsThroughWalls", g.collectibles.beamsThroughWalls);
+    ReadBool("Finder", "Pickups", g.pickups.enabled);
+    ReadBool("Finder", "PickupsThroughWalls", g.pickups.throughWalls);
+    ReadBool("Finder", "PickupBeams", g.pickups.beams);
+    ReadBool("Finder", "PickupBeamsThroughWalls", g.pickups.beamsThroughWalls);
+    ReadTypeSet("Finder", "PickupTypes", g.pickupTypes, kPickupTypes);
     ReadFloat("Finder", "Range", g.finderRange);
 
     ReadBool("Aim", "Enabled", g.aim);
@@ -412,7 +433,7 @@ void SaveSettings() {
     WriteBool("ESP", "ThreatArrows", g.threatArrows);
     WriteFloat("ESP", "PedRange", g.pedRange);
     WriteFloat("ESP", "VehicleRange", g.vehRange);
-    WriteVehicleTypes("ESP", "VehicleTypes", g.vehTypes);
+    WriteTypeSet("ESP", "VehicleTypes", g.vehTypes, kVehicleClasses);
     WriteStyle("ESP.Hostiles", g.hostiles);
     WriteStyle("ESP.Animals", g.animals);
     WriteStyle("ESP.Cops", g.cops);
@@ -420,8 +441,15 @@ void SaveSettings() {
     WriteStyle("ESP.Vehicles", g.vehicles);
     DeleteObsoleteKeys();
 
-    WriteBool("Finder", "Collectibles", g.collectibles);
-    WriteBool("Finder", "Pickups", g.pickups);
+    WriteBool("Finder", "Collectibles", g.collectibles.enabled);
+    WriteBool("Finder", "CollectiblesThroughWalls", g.collectibles.throughWalls);
+    WriteBool("Finder", "CollectibleBeams", g.collectibles.beams);
+    WriteBool("Finder", "CollectibleBeamsThroughWalls", g.collectibles.beamsThroughWalls);
+    WriteBool("Finder", "Pickups", g.pickups.enabled);
+    WriteBool("Finder", "PickupsThroughWalls", g.pickups.throughWalls);
+    WriteBool("Finder", "PickupBeams", g.pickups.beams);
+    WriteBool("Finder", "PickupBeamsThroughWalls", g.pickups.beamsThroughWalls);
+    WriteTypeSet("Finder", "PickupTypes", g.pickupTypes, kPickupTypes);
     WriteFloat("Finder", "Range", g.finderRange);
 
     WriteBool("Aim", "Enabled", g.aim);

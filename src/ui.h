@@ -28,6 +28,9 @@ void Rect(float cx, float cy, float w, float h, Color c);
 void Line3D(const Vec3& a, const Vec3& b, Color c);
 // A world-space line that is never hidden behind geometry or models.
 void OverlayLine(const Vec3& a, const Vec3& b, Color c);
+// A world-space line drawn as 2D rects between its projected ends, so it shows over everything
+// and stays locked to the same projection as markers and labels (no jitter on long lines).
+void ScreenLine(const Vec3& a, const Vec3& b, Color c);
 // font: 0 = Chalet (normal), 1 = House Script (GTA menu banner), 7 = Pricedown.
 void Text(float x, float y, const char* s, Color c, float scale = 0.26f, bool centre = true,
           int font = 0, bool outline = true);

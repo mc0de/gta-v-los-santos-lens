@@ -16,7 +16,7 @@ namespace {
 // Car is one saved car on the Garage page (Enter calls it, X twice deletes it).
 enum class ItemType { Header, GridHeader, ColumnBreak, Bool, Int, Float, Choice, Action, StyleRow, Submenu, Car };
 
-enum Page { kMainPage, kVehicleTypesPage, kGaragePage, kPageCount };
+enum Page { kMainPage, kVehicleTypesPage, kPickupTypesPage, kGaragePage, kPageCount };
 
 struct Item {
     ItemType type;
@@ -157,8 +157,23 @@ std::vector<Item> BuildVehicleTypesPage() {
     return items;
 }
 
+void ShowAllPickupTypes() { g.pickupTypes.fill(true); }
+void ShowNoPickupTypes()  { g.pickupTypes.fill(false); }
+
+std::vector<Item> BuildPickupTypesPage() {
+    std::vector<Item> items = {
+        Header("PICKUP TYPES"),
+        Action("Show all", ShowAllPickupTypes),
+        Action("Show none", ShowNoPickupTypes),
+    };
+    for (int i = 0; i < kPickupTypeCount; ++i)
+        items.push_back(Toggle(kPickupTypes[i], &g.pickupTypes[i]));
+    return items;
+}
+
 std::vector<Item>& PageItems(Page page) {
     static std::vector<Item> vehicleTypes = BuildVehicleTypesPage();
+    static std::vector<Item> pickupTypes = BuildPickupTypesPage();
     static std::vector<Item> main = {
         Header("ESP"),
         Toggle("Enabled", &g.esp),
@@ -176,9 +191,19 @@ std::vector<Item>& PageItems(Page page) {
         StyleRow("Vehicles", &g.vehicles),
 
         Header("FINDER"),
-        Toggle("Collectibles", &g.collectibles),
-        Toggle("Pickups", &g.pickups),
         FloatRange("Range", &g.finderRange, 50, 2000, 50, "%.0f m"),
+        Header("COLLECTIBLES"),
+        Toggle("Enabled", &g.collectibles.enabled),
+        Toggle("Through walls", &g.collectibles.throughWalls),
+        Toggle("Beams", &g.collectibles.beams),
+        Toggle("Beams through walls", &g.collectibles.beamsThroughWalls),
+
+        Header("PICKUPS"),
+        Toggle("Enabled", &g.pickups.enabled),
+        Toggle("Through walls", &g.pickups.throughWalls),
+        Toggle("Beams", &g.pickups.beams),
+        Toggle("Beams through walls", &g.pickups.beamsThroughWalls),
+        Submenu("Pickup types", kPickupTypesPage, PickupTypesSummary),
 
         ColumnBreak(),
         Header("AUTO-AIM"),
@@ -202,13 +227,17 @@ std::vector<Item>& PageItems(Page page) {
         Action("Reload settings file", DoReload),
     };
     static std::vector<Item> garage;
-    if (page == kGaragePage) return garage;
-    return page == kVehicleTypesPage ? vehicleTypes : main;
+    switch (page) {
+        case kVehicleTypesPage: return vehicleTypes;
+        case kPickupTypesPage:  return pickupTypes;
+        case kGaragePage:       return garage;
+        default:                return main;
+    }
 }
 
 bool g_open = false;
 Page g_page = kMainPage;
-int g_pageSel[kPageCount] = { 1, 1, 1 }; // selected item on each page (index 1: first row after the header)
+int g_pageSel[kPageCount] = { 1, 1, 1, 1 }; // selected item on each page (index 1: first row after the header)
 int g_col = 0; // selected column within grid rows
 bool g_pendingTeleport = false;
 int g_pendingCall = -1;     // garage entry to call after the input pass

@@ -44,6 +44,26 @@ inline VehicleClassSet AllVehicleClasses() { VehicleClassSet s; s.fill(true); re
 // "All", "None", the one class shown, or "N types".
 const char* VehicleTypesSummary();
 
+// Pickup types the finder tells apart (and colours), in the order of the "Pickup types" page.
+// Their names are also what PickupTypes in the ini lists.
+enum PickupType { kPickupWeapons, kPickupHealth, kPickupArmour, kPickupAmmo, kPickupCash, kPickupOther,
+                  kPickupUnknown, kPickupTypeCount };
+extern const char* const kPickupTypes[kPickupTypeCount];
+
+using PickupTypeSet = std::array<bool, kPickupTypeCount>;
+inline PickupTypeSet AllPickupTypes() { PickupTypeSet s; s.fill(true); return s; }
+
+// "All", "None", the one type shown, or "N types".
+const char* PickupTypesSummary();
+
+// How one finder group (collectibles or pickups) is drawn.
+struct FinderStyle {
+    bool enabled;
+    bool throughWalls;      // markers and labels also show for items out of sight
+    bool beams;
+    bool beamsThroughWalls; // beams drawn over walls and terrain instead of hidden by them
+};
+
 struct Collectible {
     std::string model;
     std::string label;
@@ -71,9 +91,11 @@ struct Settings {
     EspStyle vehicles    {    true,  true,  false, true,    true,  false };
 
     // Finder
-    bool collectibles = false;
-    bool pickups = false;
-    float finderRange = 300.0f;
+    //                         on     walls  beams  beams through walls
+    FinderStyle collectibles {  false, true,  true,  true };
+    FinderStyle pickups      {  false, true,  true,  false };
+    PickupTypeSet pickupTypes = AllPickupTypes();
+    float finderRange = 300.0f; // both groups
     std::vector<Collectible> collectibleModels;
     // Names for non-weapon pickups (health, armour, ...); weapon pickups are named automatically.
     std::vector<Collectible> pickupModels;

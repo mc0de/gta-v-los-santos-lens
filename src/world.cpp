@@ -15,16 +15,28 @@ namespace {
 
 // ---- Collectible / pickup finder ----
 
-struct Found { Entity entity; std::string label; Color color; };
+constexpr int kCollectible = -1; // Found::type for collectibles; pickups use PickupType
 
-// Pickup colours by type. Orange is kept for collectibles.
-constexpr Color kPickupWeapon  { 255,  60,  60, 240 }; // red
-constexpr Color kPickupHealth  {  80, 255, 120, 240 }; // green
-constexpr Color kPickupArmour  {  80, 160, 255, 240 }; // blue
-constexpr Color kPickupAmmo    { 255, 230,  60, 240 }; // yellow
-constexpr Color kPickupCash    { 255,  80, 220, 240 }; // magenta
-constexpr Color kPickupOther   {  60, 230, 255, 240 }; // cyan: parachutes, snacks, packages, ...
-constexpr Color kPickupUnknown { 230, 230, 230, 220 }; // white: unnamed model, labelled by hash
+struct Found {
+    Entity entity;
+    std::string label;
+    int type;
+    // Line of sight from the player, cached for groups that don't show through walls.
+    int losTime = 0;
+    bool losValid = false;
+    bool los = false;
+};
+
+// Pickup colours, by PickupType. Orange is kept for collectibles.
+constexpr Color kPickupColors[kPickupTypeCount] = {
+    { 255,  60,  60, 240 }, // weapons: red
+    {  80, 255, 120, 240 }, // health: green
+    {  80, 160, 255, 240 }, // armour: blue
+    { 255, 230,  60, 240 }, // ammo: yellow
+    { 255,  80, 220, 240 }, // cash: magenta
+    {  60, 230, 255, 240 }, // other (parachutes, snacks, packages, ...): cyan
+    { 230, 230, 230, 220 }, // unknown model, labelled by hash: white
+};
 
 bool Contains(const std::string& s, const char* word) {
     auto it = std::search(s.begin(), s.end(), word, word + std::strlen(word), [](char a, char b) {
@@ -34,8 +46,8 @@ bool Contains(const std::string& s, const char* word) {
 }
 
 // Non-weapon pickups are typed by the words in their [Pickups] label, so renamed or added
-// entries keep their colour as long as the label says what they are.
-Color PickupColor(const std::string& label) {
+// entries keep their type as long as the label says what they are.
+PickupType PickupTypeOf(const std::string& label) {
     if (Contains(label, "health"))                                return kPickupHealth;
     if (Contains(label, "armour") || Contains(label, "armor"))    return kPickupArmour;
     if (Contains(label, "ammo"))                                  return kPickupAmmo;
@@ -81,24 +93,25 @@ bool AlreadyFound(Entity e) {
 // The object pool can hold thousands of entries, so this runs twice a second, not every frame.
 void Scan() {
     g_found.clear();
-    if (g.collectibles) ResolveModelHashes(g.collectibleModels, g_collectibleHashes);
-    if (g.pickups)      ResolveModelHashes(g.pickupModels, g_pickupHashes);
+    const bool collectibles = g.collectibles.enabled, pickupsOn = g.pickups.enabled;
+    if (collectibles) ResolveModelHashes(g.collectibleModels, g_collectibleHashes);
+    if (pickupsOn)    ResolveModelHashes(g.pickupModels, g_pickupHashes);
 
     static int pickups[512];
     int count = worldGetAllPickups(pickups, 512);
     for (int i = 0; i < count; ++i) {
         Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, pickups[i]);
-        if (g.collectibles) {
+        if (collectibles) {
             if (const char* label = FindLabel(g_collectibleHashes, model)) {
-                g_found.push_back({ pickups[i], label, kOrange });
+                g_found.push_back({ pickups[i], label, kCollectible });
                 continue;
             }
         }
-        if (!g.pickups) continue;
+        if (!pickupsOn) continue;
         if (const char* weapon = WeaponLabelForModel(model)) {
-            g_found.push_back({ pickups[i], weapon, kPickupWeapon });
+            g_found.push_back({ pickups[i], weapon, kPickupWeapons });
         } else if (const char* label = FindLabel(g_pickupHashes, model)) {
-            g_found.push_back({ pickups[i], label, PickupColor(label) });
+            g_found.push_back({ pickups[i], label, PickupTypeOf(label) });
         } else {
             // Unknown model: show its hash so it can be named in the ini's [Pickups] section.
             char buf[32];
@@ -107,15 +120,26 @@ void Scan() {
         }
     }
 
-    if (g.collectibles) {
+    if (collectibles) {
         static int objects[4096];
         count = worldGetAllObjects(objects, 4096);
         for (int i = 0; i < count; ++i) {
             Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
             if (const char* label = FindLabel(g_collectibleHashes, model))
-                if (!AlreadyFound(objects[i])) g_found.push_back({ objects[i], label, kOrange });
+                if (!AlreadyFound(objects[i])) g_found.push_back({ objects[i], label, kCollectible });
         }
     }
+}
+
+bool InSight(Found& f, Ped player, int now) {
+    constexpr int kLosCacheMs = 200;
+    constexpr int kLosTraceFlags = 1 | 2 | 16; // world geometry + vehicles + objects
+    if (!f.losValid || now - f.losTime >= kLosCacheMs || now < f.losTime) {
+        f.los = Invoke<int>(N::HAS_ENTITY_CLEAR_LOS_TO_ENTITY, player, f.entity, kLosTraceFlags) != 0;
+        f.losTime = now;
+        f.losValid = true;
+    }
+    return f.los;
 }
 
 void ScanIfDue() {
@@ -152,30 +176,43 @@ int g_lastAttack = -100000;
 } // namespace
 
 void FinderTick(const Vec3& me) {
-    if (!g.collectibles && !g.pickups) {
+    if (!g.collectibles.enabled && !g.pickups.enabled) {
         g_found.clear();
         return;
     }
     ScanIfDue();
 
+    Ped player = Invoke<Ped>(N::PLAYER_PED_ID);
+    int now = Invoke<int>(N::GET_GAME_TIMER);
     char buf[96];
-    for (const auto& f : g_found) {
+    for (auto& f : g_found) {
+        const bool collectible = f.type == kCollectible;
+        const FinderStyle& style = collectible ? g.collectibles : g.pickups;
+        if (!style.enabled || (!collectible && !g.pickupTypes[f.type])) continue;
         if (!Invoke<int>(N::DOES_ENTITY_EXIST, f.entity)) continue;
         Vec3 pos = Invoke<Vec3>(N::GET_ENTITY_COORDS, f.entity, 1);
         float dist = Distance(me, pos);
         if (dist > g.finderRange) continue;
 
-        // A tall beam so items are visible from a distance and through clutter. A plain world line:
-        // OverlayLine (drawn just in front of the camera) jitters on beams this long.
-        Color c = f.color;
+        // A tall beam so items are visible from a distance and through clutter. Through walls,
+        // it's drawn in 2D from the same projection as the label: DRAW_LINE is hidden by walls,
+        // and OverlayLine (which pulls it in front of the camera) jitters on lines this long.
+        Color c = collectible ? kOrange : kPickupColors[f.type];
         Vec3 top = pos;
         top.z += 40.0f;
-        Line3D(pos, top, WithAlpha(c, 0.6f));
+        if (style.beams) {
+            if (style.beamsThroughWalls) ScreenLine(pos, top, WithAlpha(c, 0.7f));
+            else                         Line3D(pos, top, WithAlpha(c, 0.6f));
+        }
 
-        // Label at the beam's base if visible, otherwise partway up so hidden ones still get one.
+        if (!style.throughWalls && !InSight(f, player, now)) continue;
+
+        // Label at the item if it's on screen, otherwise partway up the beam so hidden ones
+        // still get one.
         float sx, sy;
         Vec3 labelAt = pos;
         if (!WorldToScreen(labelAt.x, labelAt.y, labelAt.z, sx, sy)) {
+            if (!style.beams) continue;
             labelAt.z += (top.z - pos.z) * 0.4f;
             if (!WorldToScreen(labelAt.x, labelAt.y, labelAt.z, sx, sy)) continue;
         }
