@@ -1,5 +1,6 @@
 #include "settings.h"
 #include "features.h" // GarageLoad
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -31,6 +32,7 @@ std::string g_path;
 // Defaults for the collectible finder. Model names are best-known values and may need adjusting
 // in the [Collectibles] section of the ini.
 const Collectible kDefaultCollectibles[] = {
+    { "prop_ld_scrap",            "Letter scrap" },
     { "prop_power_cell",          "Spaceship part" },
     { "prop_peyote_highland_01",  "Peyote" },
     { "prop_peyote_highland_02",  "Peyote" },
@@ -44,12 +46,34 @@ const Collectible kDefaultCollectibles[] = {
 // Names for non-weapon pickups, by model. Best-known values, adjustable in the [Pickups] section.
 // Weapon pickups don't need entries: they're named from the weapon list.
 const Collectible kDefaultPickups[] = {
-    { "prop_ld_health_pack",   "Health" },
-    { "prop_armour_pickup",    "Armour" },
-    { "prop_ld_ammo_pack_01",  "Ammo" },
-    { "prop_ld_ammo_pack_02",  "Ammo" },
-    { "prop_ld_ammo_pack_03",  "Ammo" },
-    { "prop_parachute",        "Parachute" },
+    { "prop_ld_health_pack",    "Health" },
+    { "prop_armour_pickup",     "Armour" },
+    { "prop_ld_ammo_pack_01",   "Ammo" },
+    { "prop_ld_ammo_pack_02",   "Ammo" },
+    { "prop_ld_ammo_pack_03",   "Ammo" },
+    { "prop_box_ammo03a",       "Ammo" },
+    { "prop_box_ammo04a",       "Ammo" },
+    { "prop_parachute",         "Parachute" },
+    { "p_parachute_s_shop",     "Parachute" },
+    { "prop_cash_pile_01",      "Cash" },
+    { "prop_cash_pile_02",      "Cash" },
+    { "prop_anim_cash_pile_01", "Cash" },
+    { "prop_anim_cash_pile_02", "Cash" },
+    { "prop_cash_envelope_01",  "Cash" },
+    { "prop_money_bag_01",      "Money bag" },
+    { "prop_poly_bag_money",    "Money bag" },
+    { "prop_cash_case_01",      "Cash case" },
+    { "prop_cash_case_02",      "Cash case" },
+    { "prop_ld_case_01",        "Briefcase" },
+    { "prop_drug_package",      "Package" },
+    { "prop_drug_package_02",   "Package" },
+    { "prop_mp_drug_package",   "Package" },
+    { "prop_choc_ego",          "Snack" },
+    { "prop_choc_meto",         "Snack" },
+    { "prop_candy_pqs",         "Snack" },
+    { "prop_ld_snack_01",       "Snack" },
+    { "prop_ecola_can",         "Soda" },
+    { "prop_ld_flow_bottle",    "Water" },
 };
 
 struct KeyName { const char* name; int vk; };
@@ -105,7 +129,6 @@ void ClampSettings() {
     Clamp(g.pedRange, 25.0f, 1000.0f);
     Clamp(g.vehRange, 25.0f, 1000.0f);
     Clamp(g.finderRange, 50.0f, 2000.0f);
-    Clamp(g.letterCount, 1, 10);
     Clamp(g.aimRange, 25.0f, 1000.0f);
     Clamp(g.aimFov, 5, 180);
     Clamp(g.skipHours, 1, 23);
@@ -228,6 +251,22 @@ void DeleteObsoleteKeys() {
     for (const char* k : kAim)  WritePrivateProfileStringA("Aim", k, nullptr, g_path.c_str());
     static const char* const kMisc[] = { "DamageX", "DamageY" };
     for (const char* k : kMisc) WritePrivateProfileStringA("Misc", k, nullptr, g_path.c_str());
+    static const char* const kFinder[] = { "Letters", "LetterCount" };
+    for (const char* k : kFinder) WritePrivateProfileStringA("Finder", k, nullptr, g_path.c_str());
+}
+
+// Letter scraps used to be a separate finder group ([Finder] Letters=); they're a collectible now.
+// Ini files from then get the scrap model added to [Collectibles], and Letters=true turns
+// collectibles on.
+void MigrateLetterScraps() {
+    std::string letters = Read("Finder", "Letters");
+    if (letters.empty()) return;
+    bool on = false;
+    ReadBool("Finder", "Letters", on);
+    if (on) g.collectibles = true;
+    for (const auto& c : g.collectibleModels)
+        if (_stricmp(c.model.c_str(), "prop_ld_scrap") == 0) return;
+    g.collectibleModels.insert(g.collectibleModels.begin(), kDefaultCollectibles[0]);
 }
 
 // Ini files from before the Pick / Target* settings: carry over Priority, IgnoreCops and
@@ -249,8 +288,11 @@ void MigrateOldAimKeys() {
 }
 
 // Reads a "model=Label" section, falling back to the defaults if it's missing or empty.
+// With addMissing, default models the section doesn't list are appended (so names added in a
+// newer version reach existing ini files); entries already there keep the user's label.
 template <size_t Count>
-void ReadModelList(const char* section, std::vector<Collectible>& out, const Collectible (&defaults)[Count]) {
+void ReadModelList(const char* section, std::vector<Collectible>& out, const Collectible (&defaults)[Count],
+                   bool addMissing = false) {
     std::vector<char> buf(32 * 1024);
     DWORD len = GetPrivateProfileSectionA(section, buf.data(), static_cast<DWORD>(buf.size()), g_path.c_str());
     out.clear();
@@ -263,8 +305,16 @@ void ReadModelList(const char* section, std::vector<Collectible>& out, const Col
         if (!model.empty()) out.push_back({ model, label });
     }
 
-    if (out.empty())
+    if (out.empty()) {
         out.assign(std::begin(defaults), std::end(defaults));
+    } else if (addMissing) {
+        for (const auto& d : defaults) {
+            bool listed = std::any_of(out.begin(), out.end(), [&](const Collectible& c) {
+                return _stricmp(c.model.c_str(), d.model.c_str()) == 0;
+            });
+            if (!listed) out.push_back(d);
+        }
+    }
 }
 
 // Rewrites a "model=Label" section wholesale ("key=value\0...\0\0").
@@ -313,8 +363,6 @@ void ReloadSettings() {
     ReadBool("Finder", "Collectibles", g.collectibles);
     ReadBool("Finder", "Pickups", g.pickups);
     ReadFloat("Finder", "Range", g.finderRange);
-    ReadBool("Finder", "Letters", g.letters);
-    ReadInt("Finder", "LetterCount", g.letterCount);
 
     ReadBool("Aim", "Enabled", g.aim);
     ReadEnum("Aim", "Bone", g.aimBone, kBoneNames);
@@ -338,7 +386,8 @@ void ReloadSettings() {
     ReadInt("Garage", "BlipColour", g.garageBlipColour);
 
     ReadModelList("Collectibles", g.collectibleModels, kDefaultCollectibles);
-    ReadModelList("Pickups", g.pickupModels, kDefaultPickups);
+    ReadModelList("Pickups", g.pickupModels, kDefaultPickups, true);
+    MigrateLetterScraps();
     ClampSettings();
     GarageLoad();
     BestSpeedsLoad();
@@ -374,8 +423,6 @@ void SaveSettings() {
     WriteBool("Finder", "Collectibles", g.collectibles);
     WriteBool("Finder", "Pickups", g.pickups);
     WriteFloat("Finder", "Range", g.finderRange);
-    WriteBool("Finder", "Letters", g.letters);
-    WriteInt("Finder", "LetterCount", g.letterCount);
 
     WriteBool("Aim", "Enabled", g.aim);
     WriteEnum("Aim", "Bone", g.aimBone, kBoneNames);

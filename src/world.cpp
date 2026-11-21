@@ -15,21 +15,53 @@ namespace {
 
 // ---- Collectible / pickup finder ----
 
-struct Found { Entity entity; const char* label; Color color; };
+struct Found { Entity entity; std::string label; bool collectible; Color color; };
+
+// Pickup colours by type. Orange is kept for collectibles.
+constexpr Color kPickupWeapon  { 255,  60,  60, 240 }; // red
+constexpr Color kPickupHealth  {  80, 255, 120, 240 }; // green
+constexpr Color kPickupArmour  {  80, 160, 255, 240 }; // blue
+constexpr Color kPickupAmmo    { 255, 230,  60, 240 }; // yellow
+constexpr Color kPickupCash    { 255,  80, 220, 240 }; // magenta
+constexpr Color kPickupOther   {  60, 230, 255, 240 }; // cyan: parachutes, snacks, packages, ...
+constexpr Color kPickupUnknown { 230, 230, 230, 220 }; // white: unnamed model, labelled by hash
+
+bool Contains(const std::string& s, const char* word) {
+    auto it = std::search(s.begin(), s.end(), word, word + std::strlen(word), [](char a, char b) {
+        return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
+    });
+    return it != s.end();
+}
+
+// Non-weapon pickups are typed by the words in their [Pickups] label, so renamed or added
+// entries keep their colour as long as the label says what they are.
+Color PickupColor(const std::string& label) {
+    if (Contains(label, "health"))                                return kPickupHealth;
+    if (Contains(label, "armour") || Contains(label, "armor"))    return kPickupArmour;
+    if (Contains(label, "ammo"))                                  return kPickupAmmo;
+    if (Contains(label, "cash") || Contains(label, "money") || Contains(label, "briefcase"))
+        return kPickupCash;
+    return kPickupOther;
+}
 
 using ModelLabels = std::vector<std::pair<Hash, std::string>>;
 
-// Labels in g_found point into these lists, so they're all rebuilt together on every scan.
-// Rebuilding (rather than caching) also picks up "Reload settings file" changes.
+// Rebuilt on every scan so "Reload settings file" changes are picked up.
 ModelLabels g_collectibleHashes;
 ModelLabels g_pickupHashes;
 std::vector<Found> g_found;
 int g_nextScan = 0;
 
+// Ini keys are model names, or a model hash written as 0x... (as unknown pickups are labelled).
 void ResolveModelHashes(const std::vector<Collectible>& models, ModelLabels& out) {
     out.clear();
-    for (const auto& c : models)
-        out.push_back({ Invoke<Hash>(N::GET_HASH_KEY, c.model.c_str()), c.label });
+    for (const auto& c : models) {
+        const char* m = c.model.c_str();
+        Hash h = (m[0] == '0' && (m[1] == 'x' || m[1] == 'X'))
+                     ? static_cast<Hash>(std::strtoul(m + 2, nullptr, 16))
+                     : Invoke<Hash>(N::GET_HASH_KEY, m);
+        out.push_back({ h, c.label });
+    }
 }
 
 const char* FindLabel(const ModelLabels& list, Hash model) {
@@ -38,56 +70,50 @@ const char* FindLabel(const ModelLabels& list, Hash model) {
     return nullptr;
 }
 
-// ---- Letter scraps ----
-
-// Only scraps the game has streamed in around the player exist as objects, so these are the
-// nearest of the currently loaded ones.
-
-Hash g_scrapModel = 0;
-bool g_scrapModelValid = false;
-bool g_scrapWarned = false;
-std::vector<Entity> g_scraps;
-
-void InitScrapModel() {
-    if (g_scrapModel) return;
-    g_scrapModel = Invoke<Hash>(N::GET_HASH_KEY, "prop_ld_scrap");
-    g_scrapModelValid = Invoke<int>(N::IS_MODEL_VALID, g_scrapModel) != 0;
+bool AlreadyFound(Entity e) {
+    for (const auto& f : g_found)
+        if (f.entity == e) return true;
+    return false;
 }
 
-// One pass over the object and pickup pools for the finder and the letter scraps. The object
-// pool can hold thousands of entries, so this runs twice a second rather than every frame.
+// One pass over the pickup and object pools. Many collectibles (letter scraps, spaceship parts)
+// are pickups rather than plain objects, so collectible models are looked for in both pools.
+// The object pool can hold thousands of entries, so this runs twice a second, not every frame.
 void Scan() {
     g_found.clear();
-    g_scraps.clear();
-    InitScrapModel();
+    if (g.collectibles) ResolveModelHashes(g.collectibleModels, g_collectibleHashes);
+    if (g.pickups)      ResolveModelHashes(g.pickupModels, g_pickupHashes);
 
-    bool wantScraps = g.letters && g_scrapModelValid;
-    if (g.collectibles || wantScraps) {
-        if (g.collectibles) ResolveModelHashes(g.collectibleModels, g_collectibleHashes);
-        static int objects[4096];
-        int count = worldGetAllObjects(objects, 4096);
-        for (int i = 0; i < count; ++i) {
-            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
-            if (wantScraps && model == g_scrapModel) {
-                g_scraps.push_back(objects[i]);
-            } else if (g.collectibles) {
-                if (const char* label = FindLabel(g_collectibleHashes, model))
-                    g_found.push_back({ objects[i], label, kOrange });
+    static int pickups[512];
+    int count = worldGetAllPickups(pickups, 512);
+    for (int i = 0; i < count; ++i) {
+        Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, pickups[i]);
+        if (g.collectibles) {
+            if (const char* label = FindLabel(g_collectibleHashes, model)) {
+                g_found.push_back({ pickups[i], label, true, kOrange });
+                continue;
             }
+        }
+        if (!g.pickups) continue;
+        if (const char* weapon = WeaponLabelForModel(model)) {
+            g_found.push_back({ pickups[i], weapon, false, kPickupWeapon });
+        } else if (const char* label = FindLabel(g_pickupHashes, model)) {
+            g_found.push_back({ pickups[i], label, false, PickupColor(label) });
+        } else {
+            // Unknown model: show its hash so it can be named in the ini's [Pickups] section.
+            char buf[32];
+            std::snprintf(buf, sizeof buf, "Pickup 0x%08X", static_cast<unsigned>(model));
+            g_found.push_back({ pickups[i], buf, false, kPickupUnknown });
         }
     }
 
-    if (g.pickups) {
-        ResolveModelHashes(g.pickupModels, g_pickupHashes);
-        static int pickups[512];
-        int count = worldGetAllPickups(pickups, 512);
+    if (g.collectibles) {
+        static int objects[4096];
+        count = worldGetAllObjects(objects, 4096);
         for (int i = 0; i < count; ++i) {
-            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, pickups[i]);
-            // Letter scraps are pickups too, but they have their own display.
-            if (model == g_scrapModel) continue;
-            const char* label = WeaponLabelForModel(model);
-            if (!label) label = FindLabel(g_pickupHashes, model);
-            g_found.push_back({ pickups[i], label ? label : "Pickup", kCyan });
+            Hash model = Invoke<Hash>(N::GET_ENTITY_MODEL, objects[i]);
+            if (const char* label = FindLabel(g_collectibleHashes, model))
+                if (!AlreadyFound(objects[i])) g_found.push_back({ objects[i], label, true, kOrange });
         }
     }
 }
@@ -98,27 +124,6 @@ void ScanIfDue() {
         Scan();
         g_nextScan = now + 500;
     }
-}
-
-void DrawScrap(const Vec3& base, float d) {
-    Vec3 top = base;
-    top.z += 150.0f;
-    // Drawn over terrain so the beam stays visible from a distance.
-    OverlayLine(base, top, WithAlpha(kPink, 0.8f));
-
-    char buf[48];
-    if (d >= 1000.0f) std::snprintf(buf, sizeof buf, "Letter scrap  %.1fkm", d / 1000.0f);
-    else              std::snprintf(buf, sizeof buf, "Letter scrap  %.0fm", d);
-
-    // Label at the beam's base if visible, otherwise partway up so distant ones still get one.
-    float sx, sy;
-    Vec3 labelAt = base;
-    if (!WorldToScreen(base.x, base.y, base.z, sx, sy)) {
-        labelAt.z += 60.0f;
-        if (!WorldToScreen(labelAt.x, labelAt.y, labelAt.z, sx, sy)) return;
-    }
-    Rect(sx, sy, 0.006f / AspectRatio(), 0.006f, kPink);
-    Text(sx, sy + 0.006f, buf, kPink, 0.24f);
 }
 
 // ---- Damage numbers ----
@@ -146,11 +151,9 @@ int g_lastAttack = -100000;
 
 } // namespace
 
-// Also runs the shared scan for LettersTick, which comes after it each frame.
 void FinderTick(const Vec3& me) {
-    if (!g.collectibles && !g.pickups && !g.letters) {
+    if (!g.collectibles && !g.pickups) {
         g_found.clear();
-        g_scraps.clear();
         return;
     }
     ScanIfDue();
@@ -162,40 +165,26 @@ void FinderTick(const Vec3& me) {
         float dist = Distance(me, pos);
         if (dist > g.finderRange) continue;
 
-        // A tall beam so items are visible from a distance and through clutter.
+        // A tall beam so items are visible from a distance and through clutter. Collectibles are
+        // often tucked away, so theirs is taller and drawn over terrain and buildings.
+        Color c = f.color;
         Vec3 top = pos;
-        top.z += 40.0f;
-        Line3D(pos, top, WithAlpha(f.color, 0.6f));
+        top.z += f.collectible ? 150.0f : 40.0f;
+        if (f.collectible) OverlayLine(pos, top, WithAlpha(c, 0.8f));
+        else               Line3D(pos, top, WithAlpha(c, 0.6f));
 
+        // Label at the beam's base if visible, otherwise partway up so hidden ones still get one.
         float sx, sy;
-        if (!WorldToScreen(pos.x, pos.y, pos.z, sx, sy)) continue;
-        Rect(sx, sy, 0.006f / AspectRatio(), 0.006f, f.color);
-        std::snprintf(buf, sizeof buf, "%s  %.0fm", f.label, dist);
-        Text(sx, sy + 0.006f, buf, f.color, 0.24f);
+        Vec3 labelAt = pos;
+        if (!WorldToScreen(labelAt.x, labelAt.y, labelAt.z, sx, sy)) {
+            labelAt.z += (top.z - pos.z) * 0.4f;
+            if (!WorldToScreen(labelAt.x, labelAt.y, labelAt.z, sx, sy)) continue;
+        }
+        Rect(sx, sy, 0.006f / AspectRatio(), 0.006f, c);
+        if (dist >= 1000.0f) std::snprintf(buf, sizeof buf, "%s  %.1fkm", f.label.c_str(), dist / 1000.0f);
+        else                 std::snprintf(buf, sizeof buf, "%s  %.0fm", f.label.c_str(), dist);
+        Text(sx, sy + 0.006f, buf, c, 0.24f);
     }
-}
-
-void LettersTick(const Vec3& me) {
-    if (!g.letters) return;
-    InitScrapModel();
-    if (!g_scrapModelValid) {
-        if (!g_scrapWarned) Notify("SPESP: letter scrap model not found");
-        g_scrapWarned = true;
-        return;
-    }
-
-    // Nearest loaded scraps, ignoring the finder range.
-    std::vector<std::pair<float, Vec3>> nearby;
-    for (Entity e : g_scraps) {
-        if (!Invoke<int>(N::DOES_ENTITY_EXIST, e)) continue;
-        Vec3 pos = Invoke<Vec3>(N::GET_ENTITY_COORDS, e, 1);
-        nearby.push_back({ Distance(me, pos), pos });
-    }
-    size_t n = (std::min)(nearby.size(), static_cast<size_t>((std::max)(g.letterCount, 0)));
-    std::partial_sort(nearby.begin(), nearby.begin() + n, nearby.end(),
-                      [](const auto& a, const auto& b) { return a.first < b.first; });
-    for (size_t i = 0; i < n; ++i)
-        DrawScrap(nearby[i].second, nearby[i].first);
 }
 
 void DamageNumbersTick(Ped player) {

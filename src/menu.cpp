@@ -179,8 +179,6 @@ std::vector<Item>& PageItems(Page page) {
         Toggle("Collectibles", &g.collectibles),
         Toggle("Pickups", &g.pickups),
         FloatRange("Range", &g.finderRange, 50, 2000, 50, "%.0f m"),
-        Toggle("Letter scraps", &g.letters),
-        IntRange("Letters shown", &g.letterCount, 1, 10, 1, "%d nearest"),
 
         ColumnBreak(),
         Header("AUTO-AIM"),

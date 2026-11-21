@@ -67,7 +67,6 @@ void Tick() {
 
     if (g.esp) EspTick(player, me);
     FinderTick(me);
-    LettersTick(me);
     DamageNumbersTick(player);
     SpeedometerTick(player);
     GarageTick(player);
