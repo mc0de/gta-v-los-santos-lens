@@ -100,15 +100,25 @@ bool ScreenBox(Entity e, Box2D& out) {
     return hits > 0;
 }
 
+// Corner brackets rather than a full outline: each corner gets two short strokes, a quarter of
+// the box's shorter side (in pixels) long, so wide and tall boxes get equal-looking corners.
 void DrawBox(const Box2D& b, Color c) {
+    const float aspect = AspectRatio();
     const float ty = 0.0012f;
-    const float tx = ty / AspectRatio();
+    const float tx = ty / aspect;
     float w = b.x1 - b.x0, h = b.y1 - b.y0;
-    float cx = (b.x0 + b.x1) * 0.5f, cy = (b.y0 + b.y1) * 0.5f;
-    Rect(cx, b.y0, w, ty, c);
-    Rect(cx, b.y1, w, ty, c);
-    Rect(b.x0, cy, tx, h, c);
-    Rect(b.x1, cy, tx, h, c);
+    float len = (std::min)(w * aspect, h) * 0.25f; // in screen-height units
+    float lx = len / aspect, ly = len;
+    // Horizontal strokes run past the corner by half a stroke width so the corners close.
+    float hx0 = b.x0 - tx * 0.5f, hx1 = b.x1 + tx * 0.5f;
+    for (float y : { b.y0, b.y1 }) {
+        Rect(hx0 + lx * 0.5f, y, lx, ty, c);
+        Rect(hx1 - lx * 0.5f, y, lx, ty, c);
+    }
+    for (float x : { b.x0, b.x1 }) {
+        Rect(x, b.y0 + ly * 0.5f, tx, ly, c);
+        Rect(x, b.y1 - ly * 0.5f, tx, ly, c);
+    }
 }
 
 void DrawHealthBar(const Box2D& b, float frac) {

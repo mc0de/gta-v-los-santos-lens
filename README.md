@@ -20,7 +20,7 @@ Targets are sorted into categories, and for each category you choose what to dra
 | Column | What it draws |
 |---|---|
 | On | Show this category at all |
-| Box | 2D bounding box |
+| Box | Corners of a 2D bounding box |
 | HP | Small health bar above the box |
 | Dist | Distance below the box |
 | Info | Peds: COP / SWAT / ARMY and the weapon held. Vehicles: name plus `emergency` and `locked` tags, and a small dot after the name when someone is driving |

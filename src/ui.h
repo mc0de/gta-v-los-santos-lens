@@ -39,6 +39,7 @@ void Notify(const char* s);
 
 // Projects the entity's model bounding box (8 corners) and returns the enclosing screen rect.
 bool ScreenBox(Entity e, Box2D& out);
+// Corner brackets marking the box.
 void DrawBox(const Box2D& b, Color c);
 // Small horizontal bar centred above the box.
 void DrawHealthBar(const Box2D& b, float frac);
