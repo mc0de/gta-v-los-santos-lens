@@ -138,12 +138,9 @@ The zip is self-contained, with versions verified against the current game versi
 | `xinput1_4.dll` | ASI loader for Enhanced: loads every `.asi` in the folder |
 | `dinput8.dll` | ASI loader for Legacy (`GTA5.exe`); unused on Enhanced, harmless |
 | `ScriptHookVDotNet.asi`, `ScriptHookVDotNet.ini`, `ScriptHookVDotNet2.dll`, `ScriptHookVDotNet3.dll` | ScriptHookVDotNet, for .NET script mods |
-| `NativeTrainer.asi` | ScriptHookV's sample trainer |
 | `DirectStorageFix.asi`, `MinHook.x64.dll` | DirectStorage fix and the hook library it uses |
 | `StraightToStoryMode.asi` | Boots straight into Story Mode |
 | `args.txt` | Game launch arguments (`-nobattleye -noBE`) |
-
-`NativeTrainer.asi` and the ScriptHookVDotNet console (`ConsoleKeyBinding` in `ScriptHookVDotNet.ini`) both default to **F4**.
 
 After a game update, ScriptHookV stops loading until it's updated, so wait for a new release.
 
