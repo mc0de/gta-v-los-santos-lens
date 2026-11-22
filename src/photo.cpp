@@ -125,8 +125,8 @@ void PhotoResetTextures() { g_textures.clear(); }
 
 std::string PhotoDir() {
     std::string dir = IniPath();
-    size_t slash = dir.find_last_of("\\/");
-    dir = (slash == std::string::npos ? std::string() : dir.substr(0, slash + 1)) + "SPESP_garage\\";
+    size_t dot = dir.find_last_of('.');
+    dir = (dot == std::string::npos ? dir : dir.substr(0, dot)) + "_garage\\";
     CreateDirectoryA(dir.c_str(), nullptr);
     return dir;
 }

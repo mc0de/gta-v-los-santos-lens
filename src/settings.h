@@ -1,5 +1,5 @@
 #pragma once
-// User settings, persisted to SPESP.ini next to the .asi.
+// User settings, persisted to LosSantosLens.ini next to the .asi.
 
 #include <windows.h>
 #include <array>
@@ -128,9 +128,9 @@ struct Settings {
 
 extern Settings g;
 
-// Reads SPESP.ini from the plugin's folder, creating it with defaults if missing.
+// Reads LosSantosLens.ini from the plugin's folder, creating it with defaults if missing.
 void LoadSettings(HMODULE module);
 void ReloadSettings();
 void SaveSettings();
-// Full path of SPESP.ini.
+// Full path of LosSantosLens.ini.
 const std::string& IniPath();

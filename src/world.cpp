@@ -372,7 +372,7 @@ const char* VehicleRealBrand(Hash model) {
     return m ? m->real : "";
 }
 
-// ---- Best speeds, per vehicle model, kept in SPESP_speeds.ini ----
+// ---- Best speeds, per vehicle model, kept in LosSantosLens_speeds.ini ----
 
 namespace {
 
@@ -392,7 +392,7 @@ void WriteBestSpeeds() {
     g_bestSavedAt = GetTickCount64();
     std::vector<std::pair<Hash, float>> rows(g_bestSpeeds.begin(), g_bestSpeeds.end());
     std::sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
-    std::string out = "; SPESP best speeds in km/h, per vehicle model (fastest first). "
+    std::string out = "; Los Santos Lens best speeds in km/h, per vehicle model (fastest first). "
                       "Edit while the game is closed.\n[BestSpeed]\n";
     char line[160];
     for (const auto& [model, kmh] : rows) {

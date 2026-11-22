@@ -5,7 +5,7 @@
 #include "invoke.h"
 #include <string>
 
-// <plugin folder>\SPESP_garage\ (created if missing).
+// <plugin folder>\LosSantosLens_garage\ (created if missing).
 std::string PhotoDir();
 
 // Points a camera at the car for a few frames, captures the game window and writes a 512x288 PNG

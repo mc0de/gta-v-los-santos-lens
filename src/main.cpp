@@ -1,5 +1,5 @@
 // Single-player ESP for GTA V (ScriptHookV plugin).
-// Default keys (configurable in SPESP.ini): Delete menu, F9 ESP, F10 pedestrians, F11 vehicles,
+// Default keys (configurable in LosSantosLens.ini): Delete menu, F9 ESP, F10 pedestrians, F11 vehicles,
 // Page Up auto-aim, Page Down aim point, End teleport to waypoint, Insert skip time, Numpad + garage,
 // Q / E switch auto-aim target left / right while aiming.
 // (F5-F8 are the game's character-switch keys.)

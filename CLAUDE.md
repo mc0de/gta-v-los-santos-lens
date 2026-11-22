@@ -1,12 +1,12 @@
-# SPESP: notes for Claude
+# Los Santos Lens: notes for Claude
 
-SPESP is a ScriptHookV `.asi` plugin (C++17, MSVC, CMake) for GTA V **Story Mode**. It adds ESP overlays, auto-aim, a collectible, pickup and letter finder, damage numbers, teleport to waypoint, and an in-game menu backed by `SPESP.ini`. `README.md` is the user-facing spec (features, hotkeys, ini keys, code layout), so read it first.
+Los Santos Lens (`LosSantosLens.asi`, formerly SPESP) is a ScriptHookV `.asi` plugin (C++17, MSVC, CMake) for GTA V **Story Mode**. It adds ESP overlays, auto-aim, a collectible, pickup and letter finder, damage numbers, teleport to waypoint, and an in-game menu backed by `LosSantosLens.ini`. `README.md` is the user-facing spec (features, hotkeys, ini keys, code layout), so read it first.
 
 ## Build
 
 ```
 cmake -B build -G "Visual Studio 17 2022" -A x64   # once
-cmake --build build --config Release               # -> build/Release/SPESP.asi
+cmake --build build --config Release               # -> build/Release/LosSantosLens.asi
 ```
 
 - `sdk/` (gitignored) holds the ScriptHookV SDK 1.0.617.1a: `sdk/inc/{main.h,types.h,natives.h}` and `sdk/lib/ScriptHookV.lib`.
@@ -35,7 +35,7 @@ cmake --build build --config Release               # -> build/Release/SPESP.asi
 
 ## Deploy and runtime gotchas
 
-- Copy `build/Release/SPESP.asi` into the game folder. This only works while the game is closed, because the running game locks the file. Check for `GTA5_Enhanced` / `PlayGTAV` processes first. After a ScriptHookV fatal error the process can linger hidden.
+- Copy `build/Release/LosSantosLens.asi` into the game folder. This only works while the game is closed, because the running game locks the file. Check for `GTA5_Enhanced` / `PlayGTAV` processes first. After a ScriptHookV fatal error the process can linger hidden.
 - The target is GTA V **Enhanced** (`GTA5_Enhanced.exe`), which needs an Enhanced-capable ASI loader as `dinput8.dll`. The 2015 loader bundled with ScriptHookV only works with Legacy. BattlEye must be off.
 - `ScriptHookV.log` and `asiloader.log` are written to the game folder.
-- `SPESP.ini` sits next to the `.asi` and is re-saved whenever the menu closes. Edit or delete it only with the game closed, or use "Reload settings file" in the menu.
+- `LosSantosLens.ini` sits next to the `.asi` and is re-saved whenever the menu closes. Edit or delete it only with the game closed, or use "Reload settings file" in the menu.

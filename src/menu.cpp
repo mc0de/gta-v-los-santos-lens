@@ -272,7 +272,7 @@ void DoClearBestSpeeds() {
 
 void DoReload() {
     ReloadSettings();
-    Notify("SPESP settings reloaded");
+    Notify("Los Santos Lens settings reloaded");
 }
 
 bool Selectable(const Item& it) {
@@ -521,7 +521,7 @@ void Draw() {
 
     // Banner and subtitle bar with the position counter.
     Rect(kX + totalW * 0.5f, kTop + kBannerH * 0.5f, totalW, kBannerH, kBanner);
-    Text(kX + totalW * 0.5f, kTop + 0.004f, "SPESP", kText, 0.85f, true, 1, false);
+    Text(kX + totalW * 0.5f, kTop + 0.004f, "Los Santos Lens", kText, 0.85f, true, 1, false);
 
     int selIndex = 0, selCount = 0;
     for (size_t i = 0; i < items.size(); ++i) {

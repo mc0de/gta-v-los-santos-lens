@@ -43,12 +43,12 @@ void AimTick(Ped player, const Vec3& me);
 void FinderTick(const Vec3& me);
 void DamageNumbersTick(Ped player);
 void SpeedometerTick(Ped player);
-void BestSpeedsLoad();  // reads SPESP_speeds.ini (best speed per vehicle model)
+void BestSpeedsLoad();  // reads LosSantosLens_speeds.ini (best speed per vehicle model)
 void BestSpeedsClear(); // forgets every best speed and rewrites the file
 void TeleportToWaypoint();
 void SkipTime();
 
-// garage.cpp: saved cars, stored in SPESP_garage.ini.
+// garage.cpp: saved cars, stored in LosSantosLens_garage.ini.
 // Everything needed to rebuild a car as it was when saved (damage and dirt aren't kept).
 struct SavedCar {
     std::string name;            // "Make Model" at save time
@@ -72,14 +72,14 @@ struct SavedCar {
     int plateStyle = -1;
     bool bulletproofTyres = false;
     bool valid = true;           // false when the game doesn't know the model (not saved to the file)
-    std::string photo;           // PNG file name in SPESP_garage\, empty = no photo
+    std::string photo;           // PNG file name in LosSantosLens_garage\, empty = no photo
     bool favorite = false;       // listed first in the garage
 
     SavedCar() { for (int& m : mods) m = -1; for (int& e : extras) e = -1; }
 };
 
 const std::vector<SavedCar>& GarageCars();
-void GarageLoad();                // reads SPESP_garage.ini
+void GarageLoad();                // reads LosSantosLens_garage.ini
 // Saves the car the player is in and takes its photo; notifies. When it's the called car,
 // overwrite updates its entry and otherwise it's added as a new one (which the called car then
 // belongs to). Calls scriptWait: run it deferred.

@@ -1,5 +1,5 @@
 // Garage: save the car you're in (with all its customisation) and call it back later.
-// Saved cars live in SPESP_garage.ini next to the plugin. The only world writes here are to the
+// Saved cars live in LosSantosLens_garage.ini next to the plugin. The only world writes here are to the
 // car we spawn ourselves.
 
 #include "features.h"
@@ -136,7 +136,7 @@ void OnGarageEntryDeleted(int index) {
     else if (g_calledIndex > index) --g_calledIndex;
 }
 
-// ---- SPESP_garage.ini ----
+// ---- LosSantosLens_garage.ini ----
 
 std::string IntList(const int* v, int n) {
     std::string s;
@@ -184,7 +184,7 @@ std::string ReadKey(const std::string& path, const char* sec, const char* key) {
 // Writes the whole file at once (one WritePrivateProfileString per key would rewrite it ~1000 times),
 // to a temp file first so a crash mid-write can't truncate the garage. Returns false on failure.
 bool WriteGarage() {
-    std::string out = "; SPESP garage. Edit while the game is closed, or reload settings in the menu right after editing.\n";
+    std::string out = "; Los Santos Lens garage. Edit while the game is closed, or reload settings in the menu right after editing.\n";
     char buf[64];
     for (size_t i = 0; i < g_cars.size(); ++i) {
         const SavedCar& c = g_cars[i];
@@ -272,7 +272,7 @@ SavedCar ReadCar(const std::string& path, const char* sec) {
     num("PlateStyle", c.plateStyle);
     flag("BulletproofTyres", c.bulletproofTyres);
     c.photo = get("Photo");
-    // Only a plain file name inside SPESP_garage\ (deleting the car deletes it).
+    // Only a plain file name inside LosSantosLens_garage\ (deleting the car deletes it).
     if (c.photo.find_first_of("\\/:") != std::string::npos || c.photo.find("..") != std::string::npos)
         c.photo.clear();
     flag("Favorite", c.favorite);
@@ -354,7 +354,7 @@ bool GarageSaveCurrent(bool overwrite) {
         std::snprintf(msg, sizeof msg, "Saved %s%s", car.name.c_str(), photo ? "" : " (no photo)");
     }
     if (!WriteGarage()) {
-        Notify("Couldn't write SPESP_garage.ini; the car is only kept until the game closes");
+        Notify("Couldn't write LosSantosLens_garage.ini; the car is only kept until the game closes");
         return true;
     }
     if (!staleFile.empty()) DeleteFileA((PhotoDir() + staleFile).c_str());
@@ -368,7 +368,7 @@ void GarageDelete(int index) {
     g_cars.erase(g_cars.begin() + index);
     OnGarageEntryDeleted(index);
     if (!WriteGarage()) {
-        Notify("Couldn't write SPESP_garage.ini");
+        Notify("Couldn't write LosSantosLens_garage.ini");
         return; // keep the photo: the file on disk still names it
     }
     if (!photo.empty()) DeleteFileA((PhotoDir() + photo).c_str());
@@ -613,7 +613,7 @@ std::vector<int> GarageDisplayOrder() {
 void GarageToggleFavorite(int index) {
     if (index < 0 || index >= static_cast<int>(g_cars.size())) return;
     g_cars[index].favorite = !g_cars[index].favorite;
-    if (!WriteGarage()) Notify("Couldn't write SPESP_garage.ini");
+    if (!WriteGarage()) Notify("Couldn't write LosSantosLens_garage.ini");
 }
 
 bool GarageSetPlate(int index, const std::string& text) {
@@ -631,6 +631,6 @@ bool GarageSetPlate(int index, const std::string& text) {
     g_cars[index].plate = plate;
     if (index == g_calledIndex && g_called && Invoke<int>(N::DOES_ENTITY_EXIST, g_called))
         Invoke(N::SET_VEHICLE_NUMBER_PLATE_TEXT, g_called, plate.c_str());
-    if (!WriteGarage()) Notify("Couldn't write SPESP_garage.ini");
+    if (!WriteGarage()) Notify("Couldn't write LosSantosLens_garage.ini");
     return true;
 }

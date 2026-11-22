@@ -1,4 +1,4 @@
-# SPESP — Single-player ESP for GTA V
+# Los Santos Lens — Single-player overlay for GTA V
 
 A [ScriptHookV](http://www.dev-c.com/gtav/scripthookv/) plugin with ESP overlays, auto-aim and a few utilities for GTA V **Story Mode**.
 
@@ -52,8 +52,8 @@ Other options:
 - **Aim at**: head or upper chest.
 
 ### Finder
-- **Collectibles**: orange markers, labels and 40 m beams on collectibles: letter scraps, spaceship parts, peyote plants and nuclear waste. The model list lives in the `[Collectibles]` section of `SPESP.ini`. The default model names are best-known values and haven't all been verified; fix or add entries there. Collectibles are looked for among both world objects and pickups (letter scraps and spaceship parts are pickups). They only exist near the player, so this finds items in your surroundings, not across the whole map, and collected ones disappear from the world and so from the display.
-- **Pickups**: markers, labels and 40 m beams on pickups, labelled with what they are and coloured by type: weapons red, health green, armour blue, ammo yellow, cash (cash, money bags, briefcases) magenta, anything else named (parachutes, snacks, packages, ...) cyan, and unknown models white. Non-weapon pickups get their type from words in their `[Pickups]` label (`health`, `armour`/`armor`, `ammo`, `cash`/`money`/`briefcase`), so keep that word in a label when renaming it. Weapon pickups are named automatically, from the same weapon list the ESP uses (DLC weapons included). Other pickups are named from the `[Pickups]` section of `SPESP.ini`. Its default model names are best-known values and haven't been verified, so fix or add entries there. A pickup with an unknown model shows its model hash, e.g. `Pickup 0x1A2B3C4D`: add `0x1A2B3C4D=Name` to `[Pickups]` to name it. Collectibles aren't repeated here.
+- **Collectibles**: orange markers, labels and 40 m beams on collectibles: letter scraps, spaceship parts, peyote plants and nuclear waste. The model list lives in the `[Collectibles]` section of `LosSantosLens.ini`. The default model names are best-known values and haven't all been verified; fix or add entries there. Collectibles are looked for among both world objects and pickups (letter scraps and spaceship parts are pickups). They only exist near the player, so this finds items in your surroundings, not across the whole map, and collected ones disappear from the world and so from the display.
+- **Pickups**: markers, labels and 40 m beams on pickups, labelled with what they are and coloured by type: weapons red, health green, armour blue, ammo yellow, cash (cash, money bags, briefcases) magenta, anything else named (parachutes, snacks, packages, ...) cyan, and unknown models white. Non-weapon pickups get their type from words in their `[Pickups]` label (`health`, `armour`/`armor`, `ammo`, `cash`/`money`/`briefcase`), so keep that word in a label when renaming it. Weapon pickups are named automatically, from the same weapon list the ESP uses (DLC weapons included). Other pickups are named from the `[Pickups]` section of `LosSantosLens.ini`. Its default model names are best-known values and haven't been verified, so fix or add entries there. A pickup with an unknown model shows its model hash, e.g. `Pickup 0x1A2B3C4D`: add `0x1A2B3C4D=Name` to `[Pickups]` to name it. Collectibles aren't repeated here.
 - **Pickup types**: a checklist (Weapons, Health, Armour, Ammo, Cash, Other, Unknown) of the pickup types to show, with **Show all** and **Show none**, like Vehicle types. All are checked by default.
 - Collectibles and pickups each have these switches in the menu:
   - **Through walls**: markers and labels show even when the item is out of sight. When off, they only show while you have a clear line of sight to the item. On by default.
@@ -63,7 +63,7 @@ Other options:
 
 ### Misc
 - **Damage numbers**: bright yellow `-N` numbers that float up from a ped's head and fade out when you damage it (hits on one ped within 0.2 s, e.g. fire or automatic fire, add up into one number), red `-N KILL` on a kill. Hits count while you're shooting, fighting or driving (and for 3 s after) on peds you've damaged; kills count when the game names you or your vehicle as the killer.
-- **Speedometer**: while you're in a vehicle, a compact GTA-style panel in the bottom-right area (one dark background, rows with labels on the left and values on the right, like the game's race timers), from top to bottom: make in cyan and model in white (`BENEFACTOR` / `Panto`); the real-life brand the make parodies in green and the class in yellow (`Mercedes-Benz` / `Compacts`; a few brands are best guesses, e.g. Nagasaki as Kawasaki); the rated top speed (`TOP`, the game's estimate, which includes upgrades) and the fastest you've ever gone in this vehicle model (`BEST`, kept permanently in `SPESP_speeds.ini`, see below); and the current speed as a big number in km/h, orange once you reach the rated top speed. On by default; position via `SpeedoX` / `SpeedoY` in the ini, which set the panel's bottom-right corner (default 0.86 / 0.985), so longer names grow to the left. Makes come from a table of ~765 models in `src/vehicle_makes.h`. Vehicles with no make (police, trains, ...) or newer than the table show only model and class.
+- **Speedometer**: while you're in a vehicle, a compact GTA-style panel in the bottom-right area (one dark background, rows with labels on the left and values on the right, like the game's race timers), from top to bottom: make in cyan and model in white (`BENEFACTOR` / `Panto`); the real-life brand the make parodies in green and the class in yellow (`Mercedes-Benz` / `Compacts`; a few brands are best guesses, e.g. Nagasaki as Kawasaki); the rated top speed (`TOP`, the game's estimate, which includes upgrades) and the fastest you've ever gone in this vehicle model (`BEST`, kept permanently in `LosSantosLens_speeds.ini`, see below); and the current speed as a big number in km/h, orange once you reach the rated top speed. On by default; position via `SpeedoX` / `SpeedoY` in the ini, which set the panel's bottom-right corner (default 0.86 / 0.985), so longer names grow to the left. Makes come from a table of ~765 models in `src/vehicle_makes.h`. Vehicles with no make (police, trains, ...) or newer than the table show only model and class.
 - **Teleport to waypoint**: set a map marker and press End (or use the menu). In a vehicle, the vehicle comes with you. Over water you land on the surface, not the seabed. If no ground is found you're taken out of any vehicle and dropped from the sky with a parachute.
 - **Skip time**: press Insert (or use the menu) to move the game clock forward 6 hours. The amount (1–23 hours) is set by **Hours to skip** in the menu. A notification shows the new time.
 
@@ -84,7 +84,7 @@ Save the car you're in and call it back later, wherever you are. Press **Numpad 
 
 ## Menu and hotkeys
 
-Press **Delete** to open the menu. It's laid out in two columns (ESP, Finder, Collectibles and Pickups on the left, Auto-aim and Misc on the right); Up/Down runs down the left column and on into the right one. Arrow keys move / change values (in the ESP grid, Left/Right move between cells), Enter toggles or runs an action, Backspace or Delete closes it (Backspace on a sub-page goes back to the main page, except on the garage page when you opened it with Numpad +). (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `SPESP.ini` when the menu closes.
+Press **Delete** to open the menu. It's laid out in two columns (ESP, Finder, Collectibles and Pickups on the left, Auto-aim and Misc on the right); Up/Down runs down the left column and on into the right one. Arrow keys move / change values (in the ESP grid, Left/Right move between cells), Enter toggles or runs an action, Backspace or Delete closes it (Backspace on a sub-page goes back to the main page, except on the garage page when you opened it with Numpad +). (Home isn't used because it opens the Rockstar Games Launcher overlay.) Settings are saved to `LosSantosLens.ini` when the menu closes.
 
 | Key | Action |
 |---|---|
@@ -103,9 +103,9 @@ F5–F8 are left alone because the game uses them for character switching, and F
 
 A small status line near the top-left corner shows what's on, e.g. `ESP HCPV | AIM HEAD`, listing the ESP categories that are on: H = hostiles, C = cops, P = pedestrians, A = animals, V = vehicles (plus `:Type` when a vehicle type filter is set).
 
-## Configuration (`SPESP.ini`)
+## Configuration (`LosSantosLens.ini`)
 
-Created next to `SPESP.asi` with defaults on first run. Edit it while the game runs and use **Reload settings file** in the menu to apply.
+Created next to `LosSantosLens.asi` with defaults on first run. Edit it while the game runs and use **Reload settings file** in the menu to apply.
 
 - `[Keys]`: key names like `F9`, `PageUp`, `Delete`, `End`, `Insert`, `Numpad5`, single letters/digits, or a hex virtual-key code like `0x7A`. `None` disables a hotkey. The garage key is `Garage=Add` (Numpad +). `AimLeft=Q` / `AimRight=E` switch the auto-aim target; the game's own Q/E actions are only turned off while these keys are Q or E.
 - `[ESP]`, `[Aim]`, `[Finder]`, `[Misc]`: everything in the menu, plus `StatusX` / `StatusY` for the status line position and `SpeedoX` / `SpeedoY` for the speedometer position (0–1 screen fractions). `[ESP] VehicleTypes` is `All`, `None`, or a comma-separated list of the menu's class names (`Super, Sports, Sports Classics`); `[Finder] PickupTypes` works the same way with the pickup type names (`Weapons, Ammo`). The finder switches are `Collectibles`, `CollectiblesThroughWalls`, `CollectibleBeams`, `CollectibleBeamsThroughWalls`, and the same for pickups (`Pickups`, `PickupsThroughWalls`, `PickupBeams`, `PickupBeamsThroughWalls`). Values outside the menu's ranges are clamped, and spaces around `=` are ignored.
@@ -115,13 +115,13 @@ Created next to `SPESP.asi` with defaults on first run. Edit it while the game r
 - `[Pickups]`: `model_name=Label` (or `0xHASH=Label`) lines naming non-weapon pickups. Default entries missing from the section are added back on load, so new default names reach existing ini files; to rename one, change its label instead of deleting the line.
 - Older ini files with `[Finder] Letters=` (letter scraps used to be a separate group) get `prop_ld_scrap` added to `[Collectibles]`, `Letters=true` turns collectibles on, and the old `Letters` / `LetterCount` keys are removed.
 
-### Best speeds file (`SPESP_speeds.ini`)
+### Best speeds file (`LosSantosLens_speeds.ini`)
 
-The speedometer's `BEST` is kept per vehicle model (every Panto shares one record, upgraded or not) in `SPESP_speeds.ini` next to `SPESP.asi`, one `0xMODELHASH=km/h ; name` line per model under `[BestSpeed]`, fastest first. Records are counted whenever you're in a vehicle, even with the speedometer turned off. A new record is written within 2 seconds, and straight away when you leave the vehicle. Anything that moves the vehicle fast counts, including falling or being launched. **Clear best speeds** in the menu (Misc) forgets every record. It asks for a second Enter within 3 seconds first. To drop a single model, delete its line while the game is closed.
+The speedometer's `BEST` is kept per vehicle model (every Panto shares one record, upgraded or not) in `LosSantosLens_speeds.ini` next to `LosSantosLens.asi`, one `0xMODELHASH=km/h ; name` line per model under `[BestSpeed]`, fastest first. Records are counted whenever you're in a vehicle, even with the speedometer turned off. A new record is written within 2 seconds, and straight away when you leave the vehicle. Anything that moves the vehicle fast counts, including falling or being launched. **Clear best speeds** in the menu (Misc) forgets every record. It asks for a second Enter within 3 seconds first. To drop a single model, delete its line while the game is closed.
 
-### Garage file (`SPESP_garage.ini`)
+### Garage file (`LosSantosLens_garage.ini`)
 
-Saved cars are kept in `SPESP_garage.ini` next to `SPESP.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file** straight away: saving or deleting a car in-game before reloading overwrites your edits. A car whose model the game doesn't know shows as `(invalid)` and can't be called. `Favorite=1` marks a favourite, and `Photo=` names the car's photo in the `SPESP_garage\` folder next to the file (512×288 PNGs, deleted with the car).
+Saved cars are kept in `LosSantosLens_garage.ini` next to `LosSantosLens.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file** straight away: saving or deleting a car in-game before reloading overwrites your edits. A car whose model the game doesn't know shows as `(invalid)` and can't be called. `Favorite=1` marks a favourite, and `Photo=` names the car's photo in the `LosSantosLens_garage\` folder next to the file (512×288 PNGs, deleted with the car).
 
 ## Building
 
@@ -142,7 +142,7 @@ cmake -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ```
 
-Output: `build/Release/SPESP.asi`. The CRT is linked statically, so the only runtime dependency is `ScriptHookV.dll`.
+Output: `build/Release/LosSantosLens.asi`. The CRT is linked statically, so the only runtime dependency is `ScriptHookV.dll`.
 
 ## Installing
 
@@ -150,7 +150,7 @@ Output: `build/Release/SPESP.asi`. The CRT is linked statically, so the only run
 2. Copy into the GTA V folder (next to `GTA5.exe` / `GTA5_Enhanced.exe`):
    - `ScriptHookV.dll`
    - an ASI loader as `dinput8.dll`. The loader bundled with ScriptHookV only works with Legacy (`GTA5.exe`); for Enhanced use one that supports it, such as [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
-   - `SPESP.asi`
+   - `LosSantosLens.asi`
 3. Launch with **BattlEye disabled** (Rockstar Games Launcher → Settings → your GTA V edition) and load Story Mode.
 
 To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI plugins loading) or all the files above.
@@ -161,11 +161,11 @@ To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI p
 |---|---|
 | `src/invoke.h` | Native invoker over the SDK's `nativeInit` / `nativePush64` / `nativeCall`, and native hashes (each checked against the SDK's `natives.h`) |
 | `src/ui.*` | Drawing helpers (text, rects, sprites, 3D lines, bounding boxes), notifications, keyboard input |
-| `src/settings.*` | `Settings` struct and `SPESP.ini` load / save |
+| `src/settings.*` | `Settings` struct and `LosSantosLens.ini` load / save |
 | `src/esp.cpp` | Ped categories, ped / vehicle ESP, labels, threat arrows |
 | `src/aim.cpp` | Auto-aim target selection, target switching, line of sight, aim zone |
 | `src/world.cpp` | Collectible / pickup finder, damage numbers, speedometer, teleport, skip time |
-| `src/garage.cpp` | Garage: saving a car's setup, `SPESP_garage.ini`, calling a car, its blip, favourites, plates |
+| `src/garage.cpp` | Garage: saving a car's setup, `LosSantosLens_garage.ini`, calling a car, its blip, favourites, plates |
 | `src/photo.*` | Garage photos: camera shot, window capture, PNG encoding, drawing them in the menu |
 | `src/vehicle_makes.h` | Generated table: vehicle model hash -> in-game make and real-life brand |
 | `src/menu.*` | In-game menu |
