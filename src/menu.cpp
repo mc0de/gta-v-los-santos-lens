@@ -1,6 +1,7 @@
 #include "menu.h"
 #include "features.h"
 #include "photo.h"
+#include "version.h"
 #include <algorithm>
 #include <cstdio>
 #include <deque>
@@ -521,7 +522,9 @@ void Draw() {
 
     // Banner and subtitle bar with the position counter.
     Rect(kX + totalW * 0.5f, kTop + kBannerH * 0.5f, totalW, kBannerH, kBanner);
-    Text(kX + totalW * 0.5f, kTop + 0.004f, "Los Santos Lens", kText, 0.85f, true, 1, false);
+    // Release builds show their version; local builds are "dev" and show just the name.
+    Text(kX + totalW * 0.5f, kTop + 0.004f, LSL_IS_RELEASE ? "Los Santos Lens v" LSL_VERSION_STR : "Los Santos Lens", kText,
+         0.85f, true, 1, false);
 
     int selIndex = 0, selCount = 0;
     for (size_t i = 0; i < items.size(); ++i) {
