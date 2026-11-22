@@ -36,7 +36,7 @@ cmake --build build --config Release               # -> build/Release/LosSantosL
 
 ## Releases
 
-- Every push to `main` publishes the next release (`.github/workflows/release.yml`): patch + 1, or `[minor]` / `[major]` in a commit message. Pushes touching only `*.md` / `docs/**` don't release. So every code push to `main` is public and versioned: build locally before pushing.
+- Every push to `main` publishes the next release (`.github/workflows/release.yml`): patch + 1, or minor / major when a commit since the last tag has `[minor]` / `[major]` on a line of its own (mentioning it inline doesn't count). Pushes touching only `*.md` / `docs/**` don't release. So every code push to `main` is public and versioned: build locally before pushing.
 - `deps/` is the user's verified dependency set, shipped byte-for-byte in the zip (`.gitattributes` keeps it binary). Don't edit those files; replace them when the user gives new ones.
 
 ## Deploy and runtime gotchas

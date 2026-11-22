@@ -1,7 +1,7 @@
 # Every push to main builds the plugin and publishes the next release: a flat zip with
 # LosSantosLens.asi and everything in deps/, ready to extract into the GTA V Enhanced folder.
-# Version: the highest vX.Y.Z tag plus one patch (v1.0.0 when there are none). A commit message
-# containing [minor] or [major] bumps that part instead. Docs-only pushes don't release.
+# Version: the highest vX.Y.Z tag plus one patch (v1.0.0 when there are none). A commit since that
+# tag with [minor] or [major] on a line of its own bumps that part instead. Docs-only pushes don't release.
 name: release
 
 on:
@@ -30,25 +30,25 @@ jobs:
       - name: Next version
         id: version
         shell: pwsh
-        env:
-          # Every commit in the push; read from the environment, never interpolated into the script.
-          MESSAGES: ${{ join(github.event.commits.*.message, '\n') }}
         run: |
           $last = git tag --list 'v*' |
             Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
             ForEach-Object { [version]$_.Substring(1) } |
             Sort-Object -Descending |
             Select-Object -First 1
+          $prev = if ($last) { "v$last" } else { '' }
+          # Every commit since the last release, so a [minor]/[major] in a queued, failed or
+          # docs-only push still counts. The marker must be on a line of its own.
+          $messages = if ($prev) { (git log --format=%B "$prev..HEAD") -join "`n" } else { '' }
           if (-not $last) {
             $next = '1.0.0'
-          } elseif ($env:MESSAGES -match '\[major\]') {
+          } elseif ($messages -match '(?m)^\s*\[major\]\s*$') {
             $next = "$($last.Major + 1).0.0"
-          } elseif ($env:MESSAGES -match '\[minor\]') {
+          } elseif ($messages -match '(?m)^\s*\[minor\]\s*$') {
             $next = "$($last.Major).$($last.Minor + 1).0"
           } else {
             $next = "$($last.Major).$($last.Minor).$($last.Build + 1)"
           }
-          $prev = if ($last) { "v$last" } else { '' }
           "Releasing v$next (previous: $(if ($prev) { $prev } else { 'none' }))"
           "version=$next" >> $env:GITHUB_OUTPUT
           "previous=$prev" >> $env:GITHUB_OUTPUT

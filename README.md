@@ -151,7 +151,7 @@ To uninstall or before playing GTA Online, remove `xinput1_4.dll` and `dinput8.d
 
 ## Releases
 
-Every push to `main` builds the plugin in GitHub Actions (`.github/workflows/release.yml`) and publishes the next release with the zip above. Versions count up on their own: the next patch version each time (`v1.0.0`, `v1.0.1`, ...), or the next minor / major version when a commit message in the push contains `[minor]` / `[major]`. Pushes that only change Markdown files or `docs/` don't make a release. The release notes list the commits since the previous release.
+Every push to `main` builds the plugin in GitHub Actions (`.github/workflows/release.yml`) and publishes the next release with the zip above. Versions count up on their own: the next patch version each time (`v1.0.0`, `v1.0.1`, ...), or the next minor / major version when any commit since the last release has `[minor]` / `[major]` on a line of its own in its message. Pushes that only change Markdown files or `docs/` don't make a release. The release notes list the commits since the previous release.
 
 The version shows in the menu banner (`Los Santos Lens v1.0.1`) and in the `.asi` file's Properties → Details. Local builds are version `dev`.
 
