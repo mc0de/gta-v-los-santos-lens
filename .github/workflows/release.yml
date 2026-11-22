@@ -1,0 +1,96 @@
+# Every push to main builds the plugin and publishes the next release: a flat zip with
+# LosSantosLens.asi and everything in deps/, ready to extract into the GTA V Enhanced folder.
+# Version: the highest vX.Y.Z tag plus one patch (v1.0.0 when there are none). A commit message
+# containing [minor] or [major] bumps that part instead. Docs-only pushes don't release.
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+permissions:
+  contents: write
+
+# One release at a time, so two quick pushes can't claim the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # all tags and history, for the version and the notes
+
+      - name: Next version
+        id: version
+        shell: pwsh
+        env:
+          # Every commit in the push; read from the environment, never interpolated into the script.
+          MESSAGES: ${{ join(github.event.commits.*.message, '\n') }}
+        run: |
+          $last = git tag --list 'v*' |
+            Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
+            ForEach-Object { [version]$_.Substring(1) } |
+            Sort-Object -Descending |
+            Select-Object -First 1
+          if (-not $last) {
+            $next = '1.0.0'
+          } elseif ($env:MESSAGES -match '\[major\]') {
+            $next = "$($last.Major + 1).0.0"
+          } elseif ($env:MESSAGES -match '\[minor\]') {
+            $next = "$($last.Major).$($last.Minor + 1).0"
+          } else {
+            $next = "$($last.Major).$($last.Minor).$($last.Build + 1)"
+          }
+          $prev = if ($last) { "v$last" } else { '' }
+          "Releasing v$next (previous: $(if ($prev) { $prev } else { 'none' }))"
+          "version=$next" >> $env:GITHUB_OUTPUT
+          "previous=$prev" >> $env:GITHUB_OUTPUT
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake -B build -A x64 "-DLSL_VERSION=${{ steps.version.outputs.version }}"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build build --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $zip = "LosSantosLens-v${{ steps.version.outputs.version }}.zip"
+          New-Item -ItemType Directory package | Out-Null
+          Copy-Item deps/* package/
+          Copy-Item build/Release/LosSantosLens.asi package/
+          Compress-Archive -Path package/* -DestinationPath $zip
+          Get-ChildItem package | Format-Table Name, Length
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $prev = "${{ steps.version.outputs.previous }}"
+          $notes = @(
+            'Extract everything into your GTA V Enhanced folder (next to `GTA5_Enhanced.exe`), replacing existing files, and launch with BattlEye off.'
+            ''
+            '## Changes'
+          )
+          if ($prev) {
+            $notes += git log --no-merges --pretty='- %s' "$prev..HEAD"
+          } else {
+            $notes += '- First release.'
+          }
+          $notes | Set-Content -Encoding utf8 notes.md
+          gh release create "v$version" "LosSantosLens-v$version.zip" `
+            --target $env:GITHUB_SHA `
+            --title "Los Santos Lens v$version" `
+            --notes-file notes.md
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

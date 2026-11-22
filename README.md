@@ -1,6 +1,6 @@
 # Los Santos Lens — Single-player overlay for GTA V
 
-A [ScriptHookV](http://www.dev-c.com/gtav/scripthookv/) plugin with ESP overlays, auto-aim and a few utilities for GTA V **Story Mode**.
+A ScriptHookV plugin with ESP overlays, auto-aim and a few utilities for GTA V **Story Mode**.
 
 > Story Mode only. Do not use with GTA Online. ScriptHookV refuses to run online, and with BattlEye enabled any modded files risk getting your account flagged.
 
@@ -123,37 +123,50 @@ The speedometer's `BEST` is kept per vehicle model (every Panto shares one recor
 
 Saved cars are kept in `LosSantosLens_garage.ini` next to `LosSantosLens.asi`, one `[CarN]` section per car, written whenever you save or delete a car. Back it up to keep your cars. You can edit it (rename a car with `Name=`, change `Plate=`, which is cut to 8 characters) while the game is closed, or while it runs followed by **Reload settings file** straight away: saving or deleting a car in-game before reloading overwrites your edits. A car whose model the game doesn't know shows as `(invalid)` and can't be called. `Favorite=1` marks a favourite, and `Photo=` names the car's photo in the `LosSantosLens_garage\` folder next to the file (512×288 PNGs, deleted with the car).
 
+## Installing
+
+1. Download `LosSantosLens-vX.Y.Z.zip` from the latest [release](../../releases/latest).
+2. Extract everything into the GTA V Enhanced folder (next to `GTA5_Enhanced.exe`), replacing existing files.
+3. Launch with **BattlEye disabled** and load Story Mode. The bundled `args.txt` passes `-nobattleye -noBE` to the game; you can also turn BattlEye off in the Rockstar Games Launcher (Settings → your GTA V edition).
+
+The zip is self-contained, with versions verified against the current game version:
+
+| File | What it is |
+|---|---|
+| `LosSantosLens.asi` | This plugin |
+| `ScriptHookV.dll` | ScriptHookV runtime (must match the game version) |
+| `xinput1_4.dll` | ASI loader for Enhanced: loads every `.asi` in the folder |
+| `dinput8.dll` | ASI loader for Legacy (`GTA5.exe`); unused on Enhanced, harmless |
+| `ScriptHookVDotNet.asi`, `ScriptHookVDotNet.ini`, `ScriptHookVDotNet2.dll`, `ScriptHookVDotNet3.dll` | ScriptHookVDotNet, for .NET script mods |
+| `NativeTrainer.asi` | ScriptHookV's sample trainer |
+| `DirectStorageFix.asi`, `MinHook.x64.dll` | DirectStorage fix and the hook library it uses |
+| `StraightToStoryMode.asi` | Boots straight into Story Mode |
+| `args.txt` | Game launch arguments (`-nobattleye -noBE`) |
+
+`NativeTrainer.asi` and the ScriptHookVDotNet console (`ConsoleKeyBinding` in `ScriptHookVDotNet.ini`) both default to **F4**.
+
+After a game update, ScriptHookV stops loading until it's updated, so wait for a new release.
+
+To uninstall or before playing GTA Online, remove `xinput1_4.dll` and `dinput8.dll` (stops all ASI plugins loading) or all the files above.
+
+## Releases
+
+Every push to `main` builds the plugin in GitHub Actions (`.github/workflows/release.yml`) and publishes the next release with the zip above. Versions count up on their own: the next patch version each time (`v1.0.0`, `v1.0.1`, ...), or the next minor / major version when a commit message in the push contains `[minor]` / `[major]`. Pushes that only change Markdown files or `docs/` don't make a release. The release notes list the commits since the previous release.
+
+The version shows in the menu banner (`Los Santos Lens v1.0.1`) and in the `.asi` file's Properties → Details. Local builds are version `dev`.
+
+To update a dependency (a new ScriptHookV after a game update, for example), replace the file in `deps/` and push.
+
 ## Building
 
-Requirements:
-
-- Visual Studio 2022 or Build Tools 2022 with the **Desktop development with C++** workload (includes CMake)
-- ScriptHookV SDK from [dev-c.com](http://www.dev-c.com/gtav/scripthookv/), extracted into `sdk/` so that these exist:
-  ```
-  sdk/inc/main.h
-  sdk/inc/types.h
-  sdk/lib/ScriptHookV.lib
-  ```
-
-Build:
+Requirements: Visual Studio 2022 or Build Tools 2022 with the **Desktop development with C++** workload (includes CMake). The ScriptHookV SDK (`sdk/inc`, `sdk/lib/ScriptHookV.lib`) is in the repo.
 
 ```
 cmake -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ```
 
-Output: `build/Release/LosSantosLens.asi`. The CRT is linked statically, so the only runtime dependency is `ScriptHookV.dll`.
-
-## Installing
-
-1. Download the ScriptHookV **runtime** (not the SDK) from dev-c.com. Make sure the build supports your game version / edition.
-2. Copy into the GTA V folder (next to `GTA5.exe` / `GTA5_Enhanced.exe`):
-   - `ScriptHookV.dll`
-   - an ASI loader as `dinput8.dll`. The loader bundled with ScriptHookV only works with Legacy (`GTA5.exe`); for Enhanced use one that supports it, such as [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader).
-   - `LosSantosLens.asi`
-3. Launch with **BattlEye disabled** (Rockstar Games Launcher → Settings → your GTA V edition) and load Story Mode.
-
-To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI plugins loading) or all the files above.
+Output: `build/Release/LosSantosLens.asi`, version `dev`. Pass `-DLSL_VERSION=X.Y.Z` when configuring to set a version (quote it in PowerShell: `"-DLSL_VERSION=1.2.3"`). The CRT is linked statically, so the only runtime dependency is `ScriptHookV.dll`.
 
 ## Code layout
 
@@ -170,3 +183,7 @@ To uninstall or before playing GTA Online, remove `dinput8.dll` (stops all ASI p
 | `src/vehicle_makes.h` | Generated table: vehicle model hash -> in-game make and real-life brand |
 | `src/menu.*` | In-game menu |
 | `src/main.cpp` | Plugin entry point, hotkeys, status line |
+| `src/version.h.in`, `src/version.rc` | Version header generated by CMake, and the `.asi`'s version resource |
+| `deps/` | Files bundled into the release zip next to the plugin |
+| `sdk/` | ScriptHookV SDK headers and import library |
+| `.github/workflows/release.yml` | Builds and publishes a release on every push to `main` |

@@ -1,0 +1,3 @@
+# Dependencies ship byte-for-byte in the release zip; never convert line endings.
+deps/** -text binary
+sdk/lib/** binary

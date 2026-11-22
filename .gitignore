@@ -1,5 +1,5 @@
 build/
-sdk/
 .vs/
 *.asi
+!deps/*.asi
 *.sublime-workspace
